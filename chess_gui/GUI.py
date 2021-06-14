@@ -1,5 +1,6 @@
 import pygame
 
+
 class ChessGUI:
     def __init__(self):
         self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
@@ -13,7 +14,9 @@ class ChessGUI:
             rectangle[1] = row * self.square_size
             for column in range(8):
                 rectangle[0] = column * self.square_size
-                pygame.draw.rect(self.surface, self.board_colours[(row + column) % 2], rectangle)
+                pygame.draw.rect(
+                    self.surface, self.board_colours[(row + column) % 2], rectangle
+                )
 
         pygame.display.update()
 
@@ -23,6 +26,7 @@ class ChessGUI:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+
 
 chess_gui = ChessGUI()
 chess_gui.mainloop()
