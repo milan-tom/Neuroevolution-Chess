@@ -78,9 +78,3 @@ class Chess:
                 if self.piece_exists_at_square(row, column, self.get_bitboard(piece)):
                     return piece
         return None
-
-
-chess = Chess()
-print(chess.get_piece_at_square(0, 2))
-chess.board = {piece: bin(value) for piece, value in chess.board.items()}
-print(chess.board)
