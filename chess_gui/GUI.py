@@ -1,8 +1,10 @@
 import pygame
+from core_chess.chess_rules import Chess
 
 
 class ChessGUI:
     def __init__(self):
+        self.chess = Chess()
         self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         self.board_colours = ((255, 255, 255), (120, 81, 45))
         self.square_size = self.surface.get_height() // 8
