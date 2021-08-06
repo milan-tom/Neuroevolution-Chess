@@ -3,7 +3,7 @@ import pygame
 
 class ChessGUI:
     def __init__(self):
-        """Initialises pygame components, and draws board"""
+        """Initialises pygame components and draws board"""
         self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         # Stores colour codes for light and dark squares, respectively
         self.board_colours = ((255, 255, 255), (120, 81, 45))
