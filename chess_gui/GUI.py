@@ -3,9 +3,13 @@ import pygame
 
 class ChessGUI:
     def __init__(self):
+        """Initialises pygame components, and draws board"""
         self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        # Stores colour codes for light and dark squares, respectively
         self.board_colours = ((255, 255, 255), (120, 81, 45))
+        # Maximises board square size based on available height, storing it in pixels
         self.square_size = self.surface.get_height() // 8
+        
         self.draw_board()
 
     def draw_board(self):
