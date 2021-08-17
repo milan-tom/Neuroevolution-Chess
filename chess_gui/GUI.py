@@ -1,16 +1,29 @@
+import os
 import pygame
+
+# Instructs OS to open window slightly offset so all of it fits on the screen
+os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
 
 
 class ChessGUI:
     def __init__(self):
         """Initialises pygame components and draws board"""
-        self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        pygame.display.set_caption("Chess GUI")
+        self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
         # Stores colour codes for light and dark squares, respectively
         self.board_colours = ((255, 255, 255), (120, 81, 45))
-        # Maximises board square size based on available height, storing it in pixels
-        self.square_size = self.surface.get_height() // 8
-        
+
+        # Creates dummy window for implementing design, enabling scaling to any screen
+        self.design = pygame.Surface((1536, 864))
+        self.square_size = 108  # Size of square in pixels to fill dummy window's height
+
         self.draw_board()
+
+    def update(self):
+        """Scales dummy design window to actual screen size and renders changes"""
+        frame = pygame.transform.scale(self.design, self.display.get_size())
+        self.display.blit(frame, frame.get_rect())
+        pygame.display.flip()
 
     def draw_board(self):
         """Displays the current state of the board"""
@@ -24,10 +37,8 @@ class ChessGUI:
                 rectangle[0] = column * self.square_size
                 # Draws chess board square
                 pygame.draw.rect(
-                    self.surface, self.board_colours[(row + column) % 2], rectangle
+                    self.design, self.board_colours[(row + column) % 2], rectangle
                 )
-        # Updates display to render changes
-        pygame.display.update()
 
     def mainloop(self):
         """Keeps GUI running, handling events and rendering changes"""
@@ -36,6 +47,7 @@ class ChessGUI:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+            self.update()
 
 
 chess_gui = ChessGUI()
