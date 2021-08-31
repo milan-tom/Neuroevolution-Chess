@@ -1,11 +1,15 @@
-import os
+from os import environ
+from threading import Thread
+
 import pygame
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
-os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
+environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
 
 
 class ChessGUI:
+    """Displays a GUI for a given chess state"""
+
     def __init__(self):
         """Initialises pygame components and draws board"""
         pygame.display.set_caption("Chess GUI")
@@ -40,15 +44,29 @@ class ChessGUI:
                     self.design, self.board_colours[(row + column) % 2], rectangle
                 )
 
+    def __enter__(self):
+        """
+        Enables use of GUI in 'with' statement, keeping while loop that keeps GUI open
+        running in separate thread to allow other code to execute
+        """
+        self.update()
+        Thread(target=self.mainloop).start()
+        return self
+
     def mainloop(self):
         """Keeps GUI running, handling events and rendering changes"""
-        running = True
-        while running:
+        self.running = True
+        while self.running:
+            self.update()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
-            self.update()
+                    self.__exit__()
+
+    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+        """Enables use of GUI in 'with' statement, closing when with statement ends"""
+        self.running = False
 
 
-chess_gui = ChessGUI()
-chess_gui.mainloop()
+if __name__ == "__main__":
+    chess_gui = ChessGUI()
+    chess_gui.mainloop()
