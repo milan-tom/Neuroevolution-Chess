@@ -1,4 +1,5 @@
 import unittest
+from itertools import product
 
 import pygame.event
 
@@ -15,17 +16,17 @@ class ChessGUITest(unittest.TestCase):
     def test_square_fill(self):
         """Test if squares fill allocated space and handle borders correctly"""
         # Loops through beginnings of squares horizontally and vertically
-        for square_x in range(0, self.square_size * 8, self.square_size):
-            for square_y in range(0, self.square_size * 8, self.square_size):
+        for square_coordinates in product(range(8), repeat=2):
+            with self.subTest(square_coordinates=square_coordinates):
                 # Checks all pixels in square have same colour as first pixel
-                square_colour = self.test_gui.design.get_at((square_x, square_y))
+                x, y = map(lambda coord: coord * self.square_size, square_coordinates)
+                square_colour = self.test_gui.design.get_at((x, y))
                 self.assertTrue(
                     all(
-                        self.test_gui.design.get_at((x, y)) == square_colour
-                        for x in range(square_x, square_x + self.square_size)
-                        for y in range(square_y, square_y + self.square_size)
+                        self.test_gui.design.get_at((x + x_move, y + y_move))
+                        == square_colour
+                        for x_move, y_move in product(range(self.square_size), repeat=2)
                     ),
-                    f"Failed testing fill of square at {(square_x, square_y)}",
                 )
 
     def test_square_colours(self):
@@ -49,16 +50,16 @@ class ChessGUITest(unittest.TestCase):
         # Checks all test squares match expected colour
         for expected_colour, test_squares in expected_colours_for_squares.items():
             for test_square in test_squares:
-                self.assertEqual(
-                    self.test_gui.design.get_at(test_square)[:-1],
-                    expected_colour,
-                    f"Failed testing colour of square at {test_square}",
-                )
+                with self.subTest(square_coordinates=test_square):
+                    self.assertEqual(
+                        self.test_gui.design.get_at(test_square)[:-1],
+                        expected_colour,
+                    )
 
-    def test_quit(self):
+    def test_quit_button(self):
         """Tests if the quit button actually closes the GUI"""
         # Creates test-specific GUI instance as testing quitting may disrupt other tests
         with ChessGUI() as test_gui:
             # Adds quit event to event queue, checking if GUI stops upon detecting it
             pygame.event.post(pygame.event.Event(pygame.QUIT))
-            self.assertFalse(test_gui.running, "Failed testing quit button")
+            self.assertFalse(test_gui.running)
