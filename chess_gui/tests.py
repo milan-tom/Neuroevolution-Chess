@@ -58,8 +58,8 @@ class ChessGUITest(unittest.TestCase):
 
     def test_quit_button(self):
         """Tests if the quit button actually closes the GUI"""
+        # Adds quit event to event queue, checking if GUI stops upon detecting it
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
         # Creates test-specific GUI instance as testing quitting may disrupt other tests
         with ChessGUI() as test_gui:
-            # Adds quit event to event queue, checking if GUI stops upon detecting it
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
             self.assertFalse(test_gui.running)

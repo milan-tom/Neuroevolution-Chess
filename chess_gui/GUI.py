@@ -43,21 +43,20 @@ class ChessGUI:
                 pygame.draw.rect(
                     self.design, self.board_colours[(row + column) % 2], rectangle
                 )
+        self.update()
 
     def __enter__(self):
         """
         Enables use of GUI in 'with' statement, keeping while loop that keeps GUI open
         running in separate thread to allow other code to execute
         """
-        self.update()
-        Thread(target=self.mainloop).start()
+        Thread(target=self.mainloop()).start()
         return self
 
     def mainloop(self):
         """Keeps GUI running, handling events and rendering changes"""
         self.running = True
         while self.running:
-            self.update()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.__exit__()
