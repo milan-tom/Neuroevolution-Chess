@@ -3,6 +3,9 @@ from threading import Thread
 
 import pygame
 
+# Adds dummy video driver for machines without displays (e.g. testing from Linux server)
+if "DISPLAY" not in environ:
+    environ["SDL_VIDEODRIVER"] = "dummy"
 # Instructs OS to open window slightly offset so all of it fits on the screen
 environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
 
