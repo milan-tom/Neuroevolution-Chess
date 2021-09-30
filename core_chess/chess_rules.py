@@ -1,5 +1,9 @@
+STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
+
+
 class Chess:
-    def __init__(self, fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"):
+    def __init__(self, fen=STARTING_FEN):
         (
             positions,
             self.next_colour,
@@ -18,3 +22,35 @@ class Chess:
                 else:
                     self.board[piece] += 1 << (row_i * 8 + piece_i)
                     piece_i += 1
+
+    @property
+    def fen(self):
+        """Returns the FEN of the current board state"""
+        rows = []
+        for row_i in range(8):
+            row = ""
+            empty_spaces = 0
+            for column_i in range(8):
+                for piece, board in self.board.items():
+                    if board & (1 << ((7 - row_i) * 8 + (7 - column_i))):
+                        if empty_spaces:
+                            row += str(empty_spaces)
+                        row += piece
+                        empty_spaces = 0
+                        break
+                else:
+                    empty_spaces += 1
+            if empty_spaces:
+                row += str(empty_spaces)
+            rows.append(row)
+
+        return " ".join(
+            (
+                "/".join(rows),
+                self.next_colour,
+                self.castling,
+                self.en_passant_square,
+                self.half_move_clock,
+                self.move_number,
+            )
+        )

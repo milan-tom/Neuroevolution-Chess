@@ -63,3 +63,7 @@ class ChessGUITest(unittest.TestCase):
         # Creates test-specific GUI instance as testing quitting may disrupt other tests
         with ChessGUI() as test_gui:
             self.assertFalse(test_gui.running)
+
+
+if __name__ == "__main__":
+    unittest.main()
