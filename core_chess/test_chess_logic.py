@@ -1,6 +1,6 @@
 import unittest
 
-from core_chess.chess_rules import Chess, STARTING_FEN, EMPTY_FEN
+from core_chess.chess_logic import Chess, STARTING_FEN, EMPTY_FEN
 
 
 RANDOM_FENS = [
