@@ -3,6 +3,8 @@ from threading import Thread
 
 import pygame
 
+from core_chess.chess_rules import Chess
+
 # Adds dummy video driver for machines without displays (e.g. testing from Linux server)
 if "DISPLAY" not in environ:
     environ["SDL_VIDEODRIVER"] = "dummy"
@@ -14,6 +16,7 @@ class ChessGUI:
     """Displays a GUI for a given chess state"""
 
     def __init__(self):
+        self.chess = Chess()
         """Initialises pygame components and draws board"""
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
