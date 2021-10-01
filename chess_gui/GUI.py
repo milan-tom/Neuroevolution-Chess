@@ -3,7 +3,7 @@ from threading import Thread
 
 import pygame
 
-from core_chess.chess_logic import Chess
+from core_chess.chess_logic import Chess, STARTING_FEN
 
 # Adds dummy video driver for machines without displays (e.g. testing from Linux server)
 if "DISPLAY" not in os.environ:
@@ -15,8 +15,8 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
 class ChessGUI:
     """Displays a GUI for a given chess state"""
 
-    def __init__(self):
-        self.chess = Chess()
+    def __init__(self, fen=STARTING_FEN):
+        self.chess = Chess(fen)
         """Initialises pygame components and draws board"""
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
@@ -87,7 +87,7 @@ class ChessGUI:
         Enables use of GUI in 'with' statement, keeping while loop that keeps GUI open
         running in separate thread to allow other code to execute
         """
-        Thread(target=self.mainloop()).start()
+        Thread(target=self.mainloop).start()
         return self
 
     def mainloop(self):

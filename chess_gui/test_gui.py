@@ -4,6 +4,7 @@ from itertools import product
 import pygame.event
 
 from chess_gui.GUI import ChessGUI
+from core_chess.chess_logic import EMPTY_FEN
 
 
 class ChessGUITest(unittest.TestCase):
@@ -15,19 +16,25 @@ class ChessGUITest(unittest.TestCase):
 
     def test_square_fill(self):
         """Test if squares fill allocated space and handle borders correctly"""
-        # Loops through beginnings of squares horizontally and vertically
-        for square_coordinates in product(range(8), repeat=2):
-            with self.subTest(square_coordinates=square_coordinates):
-                # Checks all pixels in square have same colour as first pixel
-                x, y = map(lambda coord: coord * self.square_size, square_coordinates)
-                square_colour = self.test_gui.design.get_at((x, y))
-                self.assertTrue(
-                    all(
-                        self.test_gui.design.get_at((x + x_move, y + y_move))
-                        == square_colour
-                        for x_move, y_move in product(range(self.square_size), repeat=2)
-                    ),
-                )
+        # Creates instance of GUI with empty board, preventing pieces from interfering
+        with ChessGUI(fen=EMPTY_FEN) as test_gui:
+            # Loops through beginnings of squares horizontally and vertically
+            for square_coordinates in product(range(8), repeat=2):
+                with self.subTest(square_coordinates=square_coordinates):
+                    # Checks all pixels in square have same colour as first pixel
+                    x, y = map(
+                        lambda coord: coord * self.square_size, square_coordinates
+                    )
+                    square_colour = test_gui.design.get_at((x, y))
+                    self.assertTrue(
+                        all(
+                            test_gui.design.get_at((x + x_move, y + y_move))
+                            == square_colour
+                            for x_move, y_move in product(
+                                range(self.square_size), repeat=2
+                            )
+                        ),
+                    )
 
     def test_square_colours(self):
         """Tests a sample of squares within the chess board to check square colours"""
