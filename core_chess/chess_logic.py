@@ -5,7 +5,7 @@ EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 class Chess:
     def __init__(self, fen=STARTING_FEN):
         self.pieces = "KQRBNPkqrbnp"
-        self.players = "wb"
+        self.players = "WB"
         (
             positions,
             self.next_colour,

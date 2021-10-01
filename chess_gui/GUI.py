@@ -22,10 +22,10 @@ class ChessGUI:
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
 
         # Imports all piece images
-        images_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.gif")
+        image_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.gif")
         self.piece_images = {
             piece: pygame.image.load(
-                images_path.format(self.chess.players[~piece.isupper()], piece)
+                image_path.format(self.chess.players[~piece.isupper()], piece.upper())
             )
             for piece in self.chess.pieces
         }
