@@ -1,4 +1,4 @@
-from os import environ
+import os
 from threading import Thread
 
 import pygame
@@ -6,10 +6,10 @@ import pygame
 from core_chess.chess_logic import Chess
 
 # Adds dummy video driver for machines without displays (e.g. testing from Linux server)
-if "DISPLAY" not in environ:
-    environ["SDL_VIDEODRIVER"] = "dummy"
+if "DISPLAY" not in os.environ:
+    os.environ["SDL_VIDEODRIVER"] = "dummy"
 # Instructs OS to open window slightly offset so all of it fits on the screen
-environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
+os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
 
 
 class ChessGUI:
@@ -20,13 +20,17 @@ class ChessGUI:
         """Initialises pygame components and draws board"""
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
-        # Stores colour codes for light and dark squares, respectively
+
+        # Imports all piece images
+        images_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.gif")
         self.piece_images = {
             piece: pygame.image.load(
-                f"images/{self.chess.players[~piece.isupper()]}{piece}.gif"
+                images_path.format(self.chess.players[~piece.isupper()], piece)
             )
             for piece in self.chess.pieces
         }
+
+        # Stores colour codes for light and dark squares, respectively
         self.board_colours = ((255, 255, 255), (120, 81, 45))
 
         # Creates dummy window for implementing design, enabling scaling to any screen
