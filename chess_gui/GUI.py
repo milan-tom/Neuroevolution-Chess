@@ -6,10 +6,10 @@ import pygame
 from core_chess.chess_logic import Chess, STARTING_FEN
 
 # Adds dummy video driver for machines without displays (e.g. testing from Linux server)
-if "DISPLAY" not in os.environ:
+if os.name == "posix" and "DISPLAY" not in os.environ:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
 # Instructs OS to open window slightly offset so all of it fits on the screen
-os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 30"
+os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
 
 class ChessGUI:
