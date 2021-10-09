@@ -21,8 +21,9 @@ class ChessGUI:
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
 
-        # Imports all piece images
-        image_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.gif")
+        # Imports all piece images (source:
+        # https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
+        image_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.png")
         self.piece_images = {
             piece: pygame.image.load(
                 image_path.format(self.chess.players[~piece.isupper()], piece.upper())
