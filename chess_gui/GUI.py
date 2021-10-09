@@ -24,12 +24,14 @@ class ChessGUI:
         # Imports all piece images (source:
         # https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
         image_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.png")
-        self.piece_images = {
-            piece: pygame.image.load(
-                image_path.format(self.chess.players[~piece.isupper()], piece.upper())
+        self.piece_images = {}
+        for piece in self.chess.pieces:
+            piece_image = pygame.image.load(
+                image_path.format(self.chess.players[piece.islower()], piece.upper())
             )
-            for piece in self.chess.pieces
-        }
+            self.piece_images[piece] = piece_image.subsurface(
+                piece_image.get_bounding_rect()
+            )
 
         # Stores colour codes for light and dark squares, respectively
         self.board_colours = ((255, 255, 255), (120, 81, 45))
