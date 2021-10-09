@@ -5,6 +5,7 @@ import pygame.event
 
 from chess_gui.GUI import ChessGUI
 from core_chess.chess_logic import EMPTY_FEN
+from core_chess.test_chess_logic import TEST_FENS
 
 
 class ChessGUITest(unittest.TestCase):
@@ -62,6 +63,49 @@ class ChessGUITest(unittest.TestCase):
                         self.test_gui.design.get_at(test_square)[:-1],
                         expected_colour,
                     )
+
+    def test_piece_image_positioning(self):
+        """Tests whether each piece is centered horizontally and veritcally within its
+        square"""
+        # Creates several test GUI instances for different FENs
+        for fen in TEST_FENS:
+            # Draws pieces manually on grey background, preventing square colours
+            # from interfering with tests
+            with ChessGUI(fen=fen, draw_board=False, bg="gray") as test_gui:
+                test_gui.draw_pieces()
+                # Loops through squares, performing the test if there is a piece there
+                for square_coordinates in test_gui.chess.get_rows_and_columns():
+                    if piece := test_gui.chess.get_piece_at_square(*square_coordinates):
+                        # Filters coordinates of pixels different to background colour
+                        ranges_inside_image = filter(
+                            lambda coord: test_gui.pxarray[coord[0]][coord[1]]
+                            != test_gui.mapped_bg,
+                            test_gui.get_square_range(*square_coordinates),
+                        )
+                        # Loops through horizontal and vertical dimensions, along with
+                        # coordinates for that dimension of square and filtered pixels
+                        for (dimension, square_coord, range_inside_image) in zip(
+                            "xy",
+                            map(test_gui.dimension_to_pixel, square_coordinates[::-1]),
+                            zip(*ranges_inside_image),
+                        ):
+                            with self.subTest(
+                                fen=fen,
+                                square_coordinates=square_coordinates,
+                                piece=piece,
+                                dimension=dimension,
+                            ):
+                                # Checks that padding on either side of piece image
+                                # varies by at most one (to allow for odd total padding)
+                                self.assertLessEqual(
+                                    abs(
+                                        min(range_inside_image)
+                                        + max(range_inside_image)
+                                        - 2 * square_coord
+                                        - self.square_size
+                                    ),
+                                    1,
+                                )
 
     def test_quit_button(self):
         """Tests if the quit button actually closes the GUI"""

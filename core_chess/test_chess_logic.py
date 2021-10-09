@@ -3,7 +3,7 @@ import unittest
 from core_chess.chess_logic import Chess, STARTING_FEN, EMPTY_FEN
 
 
-RANDOM_FENS = [
+RANDOM_FENS = (
     "1r6/2R1k1pp/3bp3/5p2/4n3/BP2P3/3N1PPP/6K1 b - - 3 24",
     "r4rk1/pp2qppp/4n3/1p6/8/1Q6/PP3PPP/R1B1R1K1 w - - 0 18",
     "r5k1/1p3p1p/p1p2n2/3p1P1n/6pP/4P1q1/PPB3P1/2R1QRK1 b - - 3 27",
@@ -13,7 +13,8 @@ RANDOM_FENS = [
     "r1bq1rk1/pp3ppp/2nb1n2/1B1p4/3P4/2N2N2/PP3PPP/R1BQ1RK1 w - - 3 10",
     "r5k1/bpR2pp1/p6p/P2P4/1P1N4/3n1NPP/4rP1K/R7 b - - 2 24",
     "r1bqk2r/1pp1bppp/2n2n2/p3p3/2PP4/3P1NP1/PP3PBP/RNBQ1RK1 b kq - 0 8",
-]
+)
+TEST_FENS = (STARTING_FEN, EMPTY_FEN) + RANDOM_FENS
 
 
 class ChessRulesTest(unittest.TestCase):
@@ -24,7 +25,7 @@ class ChessRulesTest(unittest.TestCase):
         re-extracting the FENs based on this chess states bitboard, checking they match
         """
         # Tests default starting position, empty position and random positions
-        for test_fen in [STARTING_FEN, EMPTY_FEN] + RANDOM_FENS:
+        for test_fen in TEST_FENS:
             with self.subTest(test_fen=test_fen):
                 test_chess = Chess() if test_fen == STARTING_FEN else Chess(test_fen)
                 self.assertEqual(test_chess.fen, test_fen)

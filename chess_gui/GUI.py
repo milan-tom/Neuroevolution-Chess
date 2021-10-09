@@ -15,7 +15,7 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 class ChessGUI:
     """Displays a GUI for a given chess state"""
 
-    def __init__(self, fen=STARTING_FEN):
+    def __init__(self, draw_board=True, fen=STARTING_FEN, bg="black"):
         self.chess = Chess(fen)
         """Initialises pygame components and draws board"""
         pygame.display.set_caption("Chess GUI")
@@ -38,7 +38,19 @@ class ChessGUI:
         self.design = pygame.Surface((1536, 864))
         self.square_size = 108  # Size of square in pixels to fill dummy window's height
 
-        self.draw_board()
+        # Stores background colour (as both RGB and mapped) and fills screen with colour
+        self.bg = pygame.Color(bg)
+        self.mapped_bg = self.design.map_rgb(self.bg)
+        self.design.fill(self.bg)
+
+        # Draws the board automatically unless specified not to
+        if draw_board:
+            self.draw_board()
+
+    @property
+    def pxarray(self):
+        """Stores dummy window pixel array representation to access pixel colours"""
+        return pygame.PixelArray(self.design)
 
     def relative_position_shift(self, image_dimension):
         return (self.square_size - image_dimension) // 2
@@ -63,25 +75,51 @@ class ChessGUI:
         self.display.blit(frame, frame.get_rect())
         pygame.display.flip()
 
+    def dimension_to_pixel(self, dimension):
+        return dimension * self.square_size
+
+    def get_square_rect(self, row, column) -> pygame.Rect:
+        """Returns pygame 'Rect' object for specified row and column"""
+        return pygame.Rect(
+            *map(self.dimension_to_pixel, (column, row, 1, 1)),
+        )
+
+    def get_dimension_range(self, dimension):
+        return range(
+            self.dimension_to_pixel(dimension), self.dimension_to_pixel(dimension + 1)
+        )
+
+    def get_square_range(self, row, column):
+        return (
+            (x, y)
+            for x in self.get_dimension_range(column)
+            for y in self.get_dimension_range(row)
+        )
+
+    def draw_board_squares(self):
+        """Draws the board on the screen"""
+        # Loops through each row and column, drawing each square within the board
+        for row, column in self.chess.get_rows_and_columns():
+            pygame.draw.rect(
+                self.design,
+                self.board_colours[(row + column) % 2],
+                self.get_square_rect(row, column),
+            )
+        self.update()
+
+    def draw_pieces(self):
+        """Draws the pieces at the correct positions on the screen"""
+        # Loops through each row and column, drawing squares and pieces
+        for row, column in self.chess.get_rows_and_columns():
+            # Draws piece at square if it exists
+            if piece := self.chess.get_piece_at_square(row, column):
+                self.draw_piece(piece, row, column)
+        self.update()
+
     def draw_board(self):
         """Displays the current state of the board"""
-        # Initialises list of rectangle (i.e. board square) coordinates
-        rectangle = [0, 0, self.square_size, self.square_size]
-        # Loops through each row and column, drawing squares and pieces
-        for row in range(8):
-            # Updates coordinates and square colours as appropriate
-            rectangle[1] = row * self.square_size
-            for column in range(8):
-                rectangle[0] = column * self.square_size
-                # Draws chess board square and piece at square if it exists
-                pygame.draw.rect(
-                    self.design, self.board_colours[(row + column) % 2], rectangle
-                )
-                piece_at_square = self.chess.get_piece_at_square(7 - row, column)
-                if piece_at_square is not None:
-                    self.draw_piece(piece_at_square, row, column)
-
-        self.update()
+        self.draw_board_squares()
+        self.draw_pieces()
 
     def __enter__(self):
         """
