@@ -52,26 +52,9 @@ class ChessGUI:
         """Stores dummy window pixel array representation to access pixel colours"""
         return pygame.PixelArray(self.design)
 
-    def relative_position_shift(self, image_dimension):
-        return (self.square_size - image_dimension) // 2
-
-    def relative_position(self, image, row, column):
-        return (
-            column * self.square_size
-            + self.relative_position_shift(image.get_height()),
-            row * self.square_size + self.relative_position_shift(image.get_width()),
-        )
-
-    def draw_piece(self, piece, row, column):
-        piece_image = self.piece_images[piece]
-        self.design.blit(
-            piece_image,
-            self.relative_position(piece_image, row, column),
-        )
-
     def update(self):
         """Scales dummy design window to actual screen size and renders changes"""
-        frame = pygame.transform.scale(self.design, self.display.get_size())
+        frame = pygame.transform.smoothscale(self.design, self.display.get_size())
         self.display.blit(frame, frame.get_rect())
         pygame.display.flip()
 
@@ -106,6 +89,14 @@ class ChessGUI:
                 self.get_square_rect(row, column),
             )
         self.update()
+
+    def draw_piece(self, piece, row, column):
+        """Draws specified piece at centre of square at specified row and column"""
+        piece_image = self.piece_images[piece]
+        self.design.blit(
+            piece_image,
+            piece_image.get_rect(center=self.get_square_rect(row, column).center),
+        )
 
     def draw_pieces(self):
         """Draws the pieces at the correct positions on the screen"""
