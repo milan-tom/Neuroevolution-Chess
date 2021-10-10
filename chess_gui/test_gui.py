@@ -1,5 +1,6 @@
 import unittest
 from itertools import product
+from collections import Counter
 
 import pygame.event
 
@@ -64,48 +65,70 @@ class ChessGUITest(unittest.TestCase):
                         expected_colour,
                     )
 
-    def test_piece_image_positioning(self):
-        """Tests whether each piece is centered horizontally and veritcally within its
-        square"""
+    def test_piece_image_positioning_and_colours(self):
         # Creates several test GUI instances for different FENs
         for fen in TEST_FENS:
             # Draws pieces manually on grey background, preventing square colours
             # from interfering with tests
             with ChessGUI(fen=fen, draw_board=False, bg="gray") as test_gui:
                 test_gui.draw_pieces()
+                # Stores 'PixelArray' screen wrapper for quicker pixel colour access
+                test_pxarray = test_gui.pxarray
                 # Loops through squares, performing the test if there is a piece there
                 for square_coordinates in test_gui.chess.get_rows_and_columns():
                     if piece := test_gui.chess.get_piece_at_square(*square_coordinates):
-                        # Filters coordinates of pixels different to background colour
-                        ranges_inside_image = filter(
-                            lambda coord: test_gui.pxarray[coord[0]][coord[1]]
-                            != test_gui.mapped_bg,
-                            test_gui.get_square_range(*square_coordinates),
-                        )
-                        # Loops through horizontal and vertical dimensions, along with
-                        # coordinates for that dimension of square and filtered pixels
-                        for (dimension, square_coord, range_inside_image) in zip(
-                            "xy",
-                            map(test_gui.dimension_to_pixel, square_coordinates[::-1]),
-                            zip(*ranges_inside_image),
+                        with self.subTest(
+                            fen=fen, square_coordinates=square_coordinates, piece=piece
                         ):
-                            with self.subTest(
-                                fen=fen,
-                                square_coordinates=square_coordinates,
-                                piece=piece,
-                                dimension=dimension,
-                            ):
-                                # Checks that padding on either side of piece image
-                                # varies by at most one (to allow for odd total padding)
-                                self.assertLessEqual(
-                                    abs(
-                                        min(range_inside_image)
-                                        + max(range_inside_image)
-                                        - 2 * square_coord
-                                        - self.square_size
-                                    ),
-                                    1,
+                            square_pxs = [
+                                test_pxarray[x][y]
+                                for x, y in test_gui.get_square_range(
+                                    *square_coordinates
                                 )
+                            ]
+                            self.check_piece_image_positioning(
+                                test_gui, square_pxs, square_coordinates
+                            )
+                            self.check_piece_image_colours(test_gui, square_pxs, piece)
+
+    def check_piece_image_positioning(self, test_gui, square_pxs, square_coordinates):
+        """Tests whether each piece is centered horizontally and veritcally within its
+        square"""
+        # Filters coordinates of pixels different to background colour
+        ranges_inside_image = [
+            coord
+            for coord, px_colour in zip(
+                test_gui.get_square_range(*square_coordinates), square_pxs
+            )
+            if px_colour != test_gui.mapped_bg
+        ]
+        # Loops through x and y coordinates separately for square and filtered pixels
+        for square_coord, range_inside_image in zip(
+            map(test_gui.dimension_to_pixel, square_coordinates[::-1]),
+            zip(*ranges_inside_image),
+        ):
+            # Checks padding on either side differs by 0 or 1 (even/odd total padding)
+            self.assertLessEqual(
+                abs(
+                    min(range_inside_image)
+                    + max(range_inside_image)
+                    - 2 * square_coord
+                    - self.square_size
+                ),
+                1,
+            )
+
+    def check_piece_image_colours(self, test_gui, square_pxs, piece):
+        """
+        Tests whether squares contain the correct colour piece image by checking that
+        piece colour is second most common (first is background) colour in image
+        """
+        image_colour = Counter(square_pxs).most_common(2)[1][0]
+        correct_piece_colour = "white" if piece.isupper() else "black"
+        self.assertEqual(
+            test_gui.design.unmap_rgb(image_colour),
+            pygame.Color(correct_piece_colour),
+        )
 
     def test_quit_button(self):
         """Tests if the quit button actually closes the GUI"""
