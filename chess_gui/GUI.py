@@ -1,4 +1,5 @@
 import os
+from itertools import product
 from threading import Thread
 
 import pygame
@@ -63,50 +64,47 @@ class ChessGUI:
     def dimension_to_pixel(self, dimension):
         return dimension * self.square_size
 
-    def get_square_rect(self, row, column) -> pygame.Rect:
+    def square_to_pixel(self, square_coords):
+        return list(map(self.dimension_to_pixel, square_coords[::-1]))
+
+    def get_square_rect(self, square_coords) -> pygame.Rect:
         """Returns pygame 'Rect' object for specified row and column"""
         return pygame.Rect(
-            *map(self.dimension_to_pixel, (column, row, 1, 1)),
+            *(self.square_to_pixel(square_coords) + [self.square_size] * 2)
         )
 
     def get_dimension_range(self, dimension):
-        return range(
-            self.dimension_to_pixel(dimension), self.dimension_to_pixel(dimension + 1)
-        )
+        return range(*self.square_to_pixel((dimension + 1, dimension)))
 
-    def get_square_range(self, row, column):
-        return (
-            (x, y)
-            for x in self.get_dimension_range(column)
-            for y in self.get_dimension_range(row)
-        )
+    def get_square_range(self, square_coords):
+        return product(*map(self.get_dimension_range, square_coords[::-1]))
 
     def draw_board_squares(self):
         """Draws the board on the screen"""
         # Loops through each row and column, drawing each square within the board
-        for row, column in self.chess.get_rows_and_columns():
+        for square_coords in self.chess.get_rows_and_columns():
             pygame.draw.rect(
                 self.design,
-                self.board_colours[(row + column) % 2],
-                self.get_square_rect(row, column),
+                self.board_colours[sum(square_coords) % 2],
+                self.get_square_rect(square_coords),
             )
         self.update()
 
-    def draw_piece(self, piece, row, column):
+    def draw_piece(self, piece, square_coords):
         """Draws specified piece at centre of square at specified row and column"""
         piece_image = self.piece_images[piece]
         self.design.blit(
             piece_image,
-            piece_image.get_rect(center=self.get_square_rect(row, column).center),
+            piece_image.get_rect(center=self.get_square_rect(square_coords).center),
         )
 
     def draw_pieces(self):
         """Draws the pieces at the correct positions on the screen"""
         # Loops through each row and column, drawing squares and pieces
-        for row, column in self.chess.get_rows_and_columns():
+        for square_coords in self.chess.get_rows_and_columns():
             # Draws piece at square if it exists
-            if piece := self.chess.get_piece_at_square(row, column):
-                self.draw_piece(piece, row, column)
+            if piece := self.chess.get_piece_at_square(square_coords):
+                self.draw_piece(piece, square_coords)
         self.update()
 
     def draw_board(self):

@@ -26,8 +26,8 @@ class Chess:
                 if piece.isnumeric():
                     piece_i += int(piece)
                 else:
-                    self.board[piece] += 1 << self.get_bitboard_index(row_i, piece_i)
-                    self.board["game"] += 1 << self.get_bitboard_index(row_i, piece_i)
+                    self.board[piece] += 1 << self.get_bitboard_index((row_i, piece_i))
+                    self.board["game"] += 1 << self.get_bitboard_index((row_i, piece_i))
                     piece_i += 1
 
     @property
@@ -38,7 +38,7 @@ class Chess:
             row = ""
             empty_spaces = 0
             for column_i in range(8):
-                if piece := self.get_piece_at_square(row_i, column_i):
+                if piece := self.get_piece_at_square((row_i, column_i)):
                     if empty_spaces:
                         row += str(empty_spaces)
                     row += piece
@@ -66,16 +66,17 @@ class Chess:
     def get_bitboard(self, piece):
         return self.board[piece]
 
-    def get_bitboard_index(self, row, column):
+    def get_bitboard_index(self, square_coords):
+        row, column = square_coords
         return (7 - row) * 8 + 7 - column
 
-    def piece_exists_at_square(self, row, column, bitboard):
-        return bitboard & (1 << self.get_bitboard_index(row, column))
+    def piece_exists_at_square(self, square_coords, bitboard):
+        return bitboard & (1 << self.get_bitboard_index(square_coords))
 
-    def get_piece_at_square(self, row, column):
-        if self.piece_exists_at_square(row, column, self.get_game_bitboard()):
+    def get_piece_at_square(self, square_coords):
+        if self.piece_exists_at_square(square_coords, self.get_game_bitboard()):
             for piece in self.pieces:
-                if self.piece_exists_at_square(row, column, self.get_bitboard(piece)):
+                if self.piece_exists_at_square(square_coords, self.get_bitboard(piece)):
                     return piece
         return None
 

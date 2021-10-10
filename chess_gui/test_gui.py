@@ -21,20 +21,16 @@ class ChessGUITest(unittest.TestCase):
         # Creates instance of GUI with empty board, preventing pieces from interfering
         with ChessGUI(fen=EMPTY_FEN) as test_gui:
             # Loops through beginnings of squares horizontally and vertically
-            for square_coordinates in product(range(8), repeat=2):
-                with self.subTest(square_coordinates=square_coordinates):
+            for square_coords in test_gui.chess.get_rows_and_columns():
+                with self.subTest(square_coords=square_coords):
+                    test_pxarray = test_gui.pxarray
                     # Checks all pixels in square have same colour as first pixel
-                    x, y = map(
-                        lambda coord: coord * self.square_size, square_coordinates
-                    )
-                    square_colour = test_gui.design.get_at((x, y))
+                    square_x, square_y = test_gui.square_to_pixel(square_coords)
+                    square_colour = test_pxarray[square_x][square_y]
                     self.assertTrue(
                         all(
-                            test_gui.design.get_at((x + x_move, y + y_move))
-                            == square_colour
-                            for x_move, y_move in product(
-                                range(self.square_size), repeat=2
-                            )
+                            test_pxarray[x][y] == square_colour
+                            for x, y in test_gui.get_square_range(square_coords)
                         ),
                     )
 
@@ -45,23 +41,25 @@ class ChessGUITest(unittest.TestCase):
         expected_colours_for_squares = {
             light: (
                 (0, 0),  # Top-left square
-                (self.square_size, self.square_size),  # Square diagonal to top-left
-                (0, self.square_size * 2),  # Light square below top-left
-                (self.square_size * 2, 0),  # Light square to right of top-left
-                (self.square_size * 7, self.square_size * 7),  # Bottom-right square
+                (1, 1),  # Square diagonal to top-left
+                (0, 2),  # Light square below top-left
+                (2, 0),  # Light square to right of top-left
+                (7, 7),  # Bottom-right square
             ),
             dark: (
-                (0, self.square_size * 7),  # Bottom-left square
-                (self.square_size * 7, 0),  # Top-right square
+                (0, 7),  # Bottom-left square
+                (7, 0),  # Top-right square
             ),
         }
 
         # Checks all test squares match expected colour
         for expected_colour, test_squares in expected_colours_for_squares.items():
             for test_square in test_squares:
-                with self.subTest(square_coordinates=test_square):
+                with self.subTest(square_coords=test_square):
                     self.assertEqual(
-                        self.test_gui.design.get_at(test_square)[:-1],
+                        self.test_gui.design.get_at(
+                            self.test_gui.square_to_pixel(test_square)
+                        )[:-1],
                         expected_colour,
                     )
 
@@ -72,39 +70,38 @@ class ChessGUITest(unittest.TestCase):
             # from interfering with tests
             with ChessGUI(fen=fen, draw_board=False, bg="gray") as test_gui:
                 test_gui.draw_pieces()
-                # Stores 'PixelArray' screen wrapper for quicker pixel colour access
                 test_pxarray = test_gui.pxarray
-                # Loops through squares, performing the test if there is a piece there
-                for square_coordinates in test_gui.chess.get_rows_and_columns():
-                    if piece := test_gui.chess.get_piece_at_square(*square_coordinates):
+                # Loops through squares, performing the tests if there is a piece there
+                for square_coords in test_gui.chess.get_rows_and_columns():
+                    if piece := test_gui.chess.get_piece_at_square(square_coords):
                         with self.subTest(
-                            fen=fen, square_coordinates=square_coordinates, piece=piece
+                            fen=fen, square_coords=square_coords, piece=piece
                         ):
+                            # Stores the mapped colour values for pixels in the square
                             square_pxs = [
                                 test_pxarray[x][y]
-                                for x, y in test_gui.get_square_range(
-                                    *square_coordinates
-                                )
+                                for x, y in test_gui.get_square_range(square_coords)
                             ]
-                            self.check_piece_image_positioning(
-                                test_gui, square_pxs, square_coordinates
+                            # Tests centring and colour of piece image in square
+                            self.check_piece_image_centred(
+                                test_gui, square_pxs, square_coords
                             )
                             self.check_piece_image_colours(test_gui, square_pxs, piece)
 
-    def check_piece_image_positioning(self, test_gui, square_pxs, square_coordinates):
-        """Tests whether each piece is centered horizontally and veritcally within its
+    def check_piece_image_centred(self, test_gui, square_pxs, square_coords):
+        """Tests whether each piece is centred horizontally and vertically within its
         square"""
         # Filters coordinates of pixels different to background colour
         ranges_inside_image = [
             coord
             for coord, px_colour in zip(
-                test_gui.get_square_range(*square_coordinates), square_pxs
+                test_gui.get_square_range(square_coords), square_pxs
             )
             if px_colour != test_gui.mapped_bg
         ]
         # Loops through x and y coordinates separately for square and filtered pixels
         for square_coord, range_inside_image in zip(
-            map(test_gui.dimension_to_pixel, square_coordinates[::-1]),
+            test_gui.square_to_pixel(square_coords),
             zip(*ranges_inside_image),
         ):
             # Checks padding on either side differs by 0 or 1 (even/odd total padding)
