@@ -60,9 +60,6 @@ class Chess:
             )
         )
 
-    def get_game_bitboard(self):
-        return self.board["game"]
-
     def get_bitboard(self, piece):
         return self.board[piece]
 
@@ -74,7 +71,7 @@ class Chess:
         return bitboard & (1 << self.get_bitboard_index(square_coords))
 
     def get_piece_at_square(self, square_coords):
-        if self.piece_exists_at_square(square_coords, self.get_game_bitboard()):
+        if self.piece_exists_at_square(square_coords, self.get_bitboard("game")):
             for piece in self.pieces:
                 if self.piece_exists_at_square(square_coords, self.get_bitboard(piece)):
                     return piece
@@ -82,3 +79,29 @@ class Chess:
 
     def get_rows_and_columns(self):
         return product(range(8), repeat=2)
+
+    def remove_bitboard_index(self, piece, index):
+        self.board[piece] &= ~(1 << index)
+
+    def add_bitboard_index(self, piece, index):
+        self.board[piece] |= 1 << index
+
+    def replace_piece_bitboard_index(self, piece, old_index, new_index):
+        self.remove_bitboard_index(piece, old_index)
+        self.add_bitboard_index(piece, new_index)
+
+    def get_moves(self, piece, square_coords):
+        row, column = square_coords
+        return (
+            (row + row_change, column + column_change)
+            for row_change, column_change in product(range(-1, 2), repeat=2)
+            if row_change or column_change
+        )
+
+    def move(self, piece_at_square, old_square_coord, new_square_coord):
+        old_bitboard_index = self.get_bitboard_index(old_square_coord)
+        new_bitboard_index = self.get_bitboard_index(new_square_coord)
+        for piece in ("game", piece_at_square):
+            self.replace_piece_bitboard_index(
+                piece, old_bitboard_index, new_bitboard_index
+            )
