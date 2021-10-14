@@ -67,8 +67,7 @@ class ChessGUITest(unittest.TestCase):
         for fen in TEST_FENS:
             # Draws pieces manually on grey background, preventing square colours
             # from interfering with tests
-            with ChessGUI(fen=fen, draw_board=False, bg="gray") as test_gui:
-                test_gui.draw_pieces()
+            with ChessGUI(fen=fen) as test_gui:
                 test_pxarray = test_gui.pxarray
                 # Loops through squares, performing the tests if there is a piece there
                 for square_coords in test_gui.chess.get_rows_and_columns():
@@ -90,13 +89,16 @@ class ChessGUITest(unittest.TestCase):
     def check_piece_image_centred(self, test_gui, square_pxs, square_coords):
         """Tests whether each piece is centred horizontally and vertically within its
         square"""
-        # Filters coordinates of pixels different to background colour
+        # Filters coordinates of pixels different to square colour
+        mapped_square_colour = test_gui.design.map_rgb(
+            test_gui.get_square_colour(square_coords)
+        )
         ranges_inside_image = [
             coord
             for coord, px_colour in zip(
                 test_gui.get_square_range(square_coords), square_pxs
             )
-            if px_colour != test_gui.mapped_bg
+            if px_colour != mapped_square_colour
         ]
         # Loops through x and y coordinates separately for square and filtered pixels
         for square_coord, range_inside_image in zip(

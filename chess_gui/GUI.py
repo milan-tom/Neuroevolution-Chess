@@ -17,7 +17,7 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 class ChessGUI:
     """Displays a GUI for a given chess state"""
 
-    def __init__(self, draw_board=True, fen=STARTING_FEN, bg="black"):
+    def __init__(self, fen=STARTING_FEN):
         """Initialises pygame components and draws board"""
         pygame.init()
         pygame.display.set_caption("Chess GUI")
@@ -41,20 +41,14 @@ class ChessGUI:
             )
 
         # Stores colour codes for light and dark squares, respectively
-        self.board_colours = ((255, 255, 255), (120, 81, 45))
+        self.board_colours = (240, 217, 181), (187, 129, 65)
 
         # Creates dummy window for implementing design, enabling scaling to any screen
         self.design = pygame.Surface((1536, 864))
         self.square_size = 108  # Size of square in pixels to fill dummy window's height
 
-        # Stores background colour (as both RGB and mapped) and fills screen with colour
-        self.bg = pygame.Color(bg)
-        self.mapped_bg = self.design.map_rgb(self.bg)
-        self.clear()
-
-        # Draws the board automatically unless specified not to
-        if draw_board:
-            self.draw_board()
+        # Draws the board automatically
+        self.draw_board()
 
     @property
     def pxarray(self):
@@ -62,7 +56,7 @@ class ChessGUI:
         return pygame.PixelArray(self.design)
 
     def clear(self):
-        self.design.fill(self.bg)
+        self.design.fill("black")
 
     def update(self):
         """Scales dummy design window to actual screen size and renders changes"""
