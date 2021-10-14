@@ -1,5 +1,4 @@
 import unittest
-from itertools import product
 from collections import Counter
 
 import pygame.event
@@ -133,6 +132,7 @@ class ChessGUITest(unittest.TestCase):
         pygame.event.post(pygame.event.Event(pygame.QUIT))
         # Creates test-specific GUI instance as testing quitting may disrupt other tests
         with ChessGUI() as test_gui:
+            test_gui.mainloop()
             self.assertFalse(test_gui.running)
 
 

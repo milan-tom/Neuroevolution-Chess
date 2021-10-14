@@ -1,6 +1,6 @@
 import os
 from itertools import product
-from threading import Thread
+from time import process_time
 
 import pygame
 import pygame_widgets
@@ -23,6 +23,7 @@ class ChessGUI:
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
         self.buttons = []
+        self.running = True
 
         # Initialises chess object to manage chess rules for GUI
         self.chess = Chess(fen)
@@ -164,30 +165,26 @@ class ChessGUI:
                 ),
             )
             self.draw_piece(peice, old_square_coords)
+        self.update()
 
     def move_piece(self, piece, old_square_coords, new_square_coords):
         self.chess.move(piece, old_square_coords, new_square_coords)
         self.draw_board()
 
     def __enter__(self):
-        """
-        Enables use of GUI in 'with' statement, keeping while loop that keeps GUI open
-        running in separate thread to allow other code to execute
-        """
-        Thread(target=self.mainloop).start()
+        """Enables use of GUI in 'with' statement"""
         return self
 
-    def mainloop(self):
+    def mainloop(self, time_limit=float("inf")):
         """Keeps GUI running, handling events and rendering changes"""
-        self.running = True
-        while self.running:
+        start_time = process_time()
+        while self.running and (process_time() - start_time) < time_limit:
             for event in (events := pygame.event.get()):
                 if event.type == pygame.QUIT:
                     self.__exit__()
 
             for button in self.buttons:
                 button.listen(events)
-            self.update()
 
     def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
         """Enables use of GUI in 'with' statement, closing when with statement ends"""
