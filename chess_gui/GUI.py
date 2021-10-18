@@ -23,6 +23,7 @@ class ChessGUI:
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
         self.buttons = []
+        self.selected_square = None
         self.running = True
 
         # Initialises chess object to manage chess rules for GUI
@@ -146,20 +147,27 @@ class ChessGUI:
         self.draw_board_squares()
         self.draw_pieces()
 
-    def show_moves(self, peice, old_square_coords):
-        for new_square_coords in self.chess.get_moves(peice, old_square_coords):
-            self.draw_button_at_coordinates(
-                square_coords=new_square_coords,
-                colour=(0, 255, 0),
-                on_release=self.move_piece,
-                on_release_params=(
-                    peice,
-                    old_square_coords,
-                    new_square_coords,
-                ),
-            )
-            self.draw_piece(peice, old_square_coords)
-        self.update()
+    def show_moves(self, piece, old_square_coords):
+        if self.selected_square is not None:
+            self.draw_board()
+
+        if self.selected_square == old_square_coords:
+            self.selected_square = None
+        else:
+            self.selected_square = old_square_coords
+            for new_square_coords in self.chess.get_moves(piece, old_square_coords):
+                self.draw_button_at_coordinates(
+                    square_coords=new_square_coords,
+                    colour=(0, 255, 0),
+                    on_release=self.move_piece,
+                    on_release_params=(
+                        piece,
+                        old_square_coords,
+                        new_square_coords,
+                    ),
+                )
+                self.draw_piece(piece, old_square_coords)
+            self.update()
 
     def move_piece(self, piece, old_square_coords, new_square_coords):
         self.chess.move(piece, old_square_coords, new_square_coords)
