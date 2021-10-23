@@ -1,7 +1,8 @@
 import unittest
 from collections import Counter
 
-import pygame.event
+import pygame
+import pygame_widgets
 
 from chess_gui.GUI import ChessGUI
 from core_chess.chess_logic import EMPTY_FEN
@@ -128,13 +129,46 @@ class ChessGUITest(unittest.TestCase):
             pygame.Color(correct_piece_colour),
         )
 
+    def find_move_buttons(self, test_gui):
+        """Generator yielding all square coordinates shown as possible moves"""
+        for square_coords in test_gui.chess.get_rows_and_columns():
+            if (
+                test_gui.design.get_at(self.test_gui.square_to_pixel(square_coords))
+                == test_gui.move_button_colour
+            ):
+                yield square_coords
+
+    def simulate_button_click(self, test_gui, square_coords):
+        """Simulates a button press at the given coordinates"""
+        test_coords = test_gui.get_square_rect(square_coords).center
+        pygame.mouse.set_pos(*test_gui.design_coord_to_display(test_coords))
+        test_gui.mainloop(1)
+        pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.CLICK
+        pygame_widgets.widget.WidgetHandler.main([])
+        test_gui.mainloop(1)
+
+    def test_showing_moves(self):
+        """Tests that moves are shown correctly when pieces are clicked"""
+        with ChessGUI() as test_gui:
+            test_square_coords = (6, 5)
+
+            # Tests single click shows moves
+            self.simulate_button_click(test_gui, test_square_coords)
+            self.assertTrue(any(self.find_move_buttons(test_gui)))
+
+            # Tests clicking same piece twice clears moves
+            self.simulate_button_click(test_gui, test_square_coords)
+            self.assertFalse(
+                any(self.find_move_buttons(test_gui)),
+            )
+
     def test_quit_button(self):
         """Tests if the quit button actually closes the GUI"""
         # Adds quit event to event queue, checking if GUI stops upon detecting it
         pygame.event.post(pygame.event.Event(pygame.QUIT))
         # Creates test-specific GUI instance as testing quitting may disrupt other tests
         with ChessGUI() as test_gui:
-            test_gui.mainloop()
+            test_gui.mainloop(1)
             self.assertFalse(test_gui.running)
 
 

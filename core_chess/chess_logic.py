@@ -15,9 +15,15 @@ class Chess:
             self.en_passant_square,
             self.half_move_clock,
             self.move_number,
-        ) = fen.split()
+        ) = self.fen_portions(fen)
         self.board = dict.fromkeys(list(self.pieces) + ["game"], 0)
         self.fen_positions(positions)
+
+    def fen_portions(self, fen):
+        return fen.split()
+
+    def fens_portion(self, fens, portion_i):
+        return map(lambda fen: self.fen_portions(fen)[portion_i], fens)
 
     def fen_positions(self, positions):
         for row_i, row in enumerate(positions.split("/")):
@@ -98,10 +104,10 @@ class Chess:
             if row_change or column_change
         )
 
-    def move(self, piece_at_square, old_square_coord, new_square_coord):
+    def move(self, old_square_coord, new_square_coord):
         old_bitboard_index = self.get_bitboard_index(old_square_coord)
         new_bitboard_index = self.get_bitboard_index(new_square_coord)
-        for piece in ("game", piece_at_square):
+        for piece in ("game", self.get_piece_at_square(old_square_coord)):
             self.replace_piece_bitboard_index(
                 piece, old_bitboard_index, new_bitboard_index
             )

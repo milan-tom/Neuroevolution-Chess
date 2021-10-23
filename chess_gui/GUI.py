@@ -4,6 +4,7 @@ from time import process_time
 
 import pygame
 import pygame_widgets
+from pygame_widgets.button import Button
 
 from core_chess.chess_logic import Chess, STARTING_FEN
 
@@ -22,7 +23,6 @@ class ChessGUI:
         pygame.init()
         pygame.display.set_caption("Chess GUI")
         self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
-        self.buttons = []
         self.selected_square = None
         self.running = True
 
@@ -41,8 +41,9 @@ class ChessGUI:
                 piece_image.get_bounding_rect()
             )
 
-        # Stores colour codes for light and dark squares, respectively
+        # Stores colour codes for light and dark squares, respectively, and move button
         self.board_colours = (240, 217, 181), (187, 129, 65)
+        self.move_button_colour = (0, 255, 0)
 
         # Creates dummy window for implementing design, enabling scaling to any screen
         self.design = pygame.Surface((1536, 864))
@@ -58,12 +59,20 @@ class ChessGUI:
 
     def clear(self):
         self.design.fill("black")
+        pygame_widgets.widget.WidgetHandler._widgets = []
 
     def update(self):
         """Scales dummy design window to actual screen size and renders changes"""
-        frame = pygame.transform.smoothscale(self.design, self.display.get_size())
-        self.display.blit(frame, frame.get_rect())
+        pygame.transform.smoothscale(self.design, self.display.get_size(), self.display)
         pygame.display.flip()
+
+    def design_coord_to_display(self, coords):
+        return [
+            coord * display_size / design_size
+            for coord, design_size, display_size in zip(
+                coords, self.design.get_size(), self.display.get_size()
+            )
+        ]
 
     def dimension_to_pixel(self, dimension):
         return dimension * self.square_size
@@ -93,7 +102,7 @@ class ChessGUI:
         on_release,
         on_release_params=(),
     ):
-        button = pygame_widgets.Button(
+        button = Button(
             self.design,
             *self.square_to_pixel(square_coords),
             height=self.square_size,
@@ -103,7 +112,6 @@ class ChessGUI:
             onReleaseParams=on_release_params,
         )
         button.draw()
-        self.buttons.append(button)
 
     def draw_board_squares(self):
         """Draws the board on the screen"""
@@ -154,23 +162,22 @@ class ChessGUI:
         if self.selected_square == old_square_coords:
             self.selected_square = None
         else:
+            self.draw_pieces()
             self.selected_square = old_square_coords
             for new_square_coords in self.chess.get_moves(piece, old_square_coords):
                 self.draw_button_at_coordinates(
                     square_coords=new_square_coords,
-                    colour=(0, 255, 0),
+                    colour=self.move_button_colour,
                     on_release=self.move_piece,
                     on_release_params=(
-                        piece,
                         old_square_coords,
                         new_square_coords,
                     ),
                 )
-                self.draw_piece(piece, old_square_coords)
             self.update()
 
-    def move_piece(self, piece, old_square_coords, new_square_coords):
-        self.chess.move(piece, old_square_coords, new_square_coords)
+    def move_piece(self, old_square_coords, new_square_coords):
+        self.chess.move(old_square_coords, new_square_coords)
         self.draw_board()
 
     def __enter__(self):
@@ -179,14 +186,15 @@ class ChessGUI:
 
     def mainloop(self, time_limit=float("inf")):
         """Keeps GUI running, handling events and rendering changes"""
+        time_limit /= 1000
         start_time = process_time()
         while self.running and (process_time() - start_time) < time_limit:
             for event in (events := pygame.event.get()):
                 if event.type == pygame.QUIT:
                     self.__exit__()
 
-            for button in self.buttons:
-                button.listen(events)
+            pygame_widgets.update(events)
+            pygame.display.update()
 
     def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
         """Enables use of GUI in 'with' statement, closing when with statement ends"""
