@@ -23,7 +23,7 @@ class ChessGUITest(unittest.TestCase):
             # Loops through beginnings of squares horizontally and vertically
             for square_coords in test_gui.chess.get_rows_and_columns():
                 with self.subTest(square_coords=square_coords):
-                    test_pxarray = test_gui.pxarray
+                    test_pxarray = pygame.PixelArray(test_gui.design)
                     # Checks all pixels in square have same colour as first pixel
                     square_x, square_y = test_gui.square_to_pixel(square_coords)
                     square_colour = test_pxarray[square_x][square_y]
@@ -66,10 +66,8 @@ class ChessGUITest(unittest.TestCase):
     def test_piece_image_positioning_and_colours(self):
         # Creates several test GUI instances for different FENs
         for fen in TEST_FENS:
-            # Draws pieces manually on grey background, preventing square colours
-            # from interfering with tests
             with ChessGUI(fen=fen) as test_gui:
-                test_pxarray = test_gui.pxarray
+                test_pxarray = pygame.PixelArray(test_gui.display)
                 # Loops through squares, performing the tests if there is a piece there
                 for square_coords in test_gui.chess.get_rows_and_columns():
                     if piece := test_gui.chess.get_piece_at_square(square_coords):
@@ -79,7 +77,9 @@ class ChessGUITest(unittest.TestCase):
                             # Stores the mapped colour values for pixels in the square
                             square_pxs = [
                                 test_pxarray[x][y]
-                                for x, y in test_gui.get_square_range(square_coords)
+                                for x, y in test_gui.get_square_range(
+                                    square_coords, scaled=True
+                                )
                             ]
                             # Tests centring and colour of piece image in square
                             self.check_piece_image_centred(
@@ -91,30 +91,31 @@ class ChessGUITest(unittest.TestCase):
         """Tests whether each piece is centred horizontally and vertically within its
         square"""
         # Filters coordinates of pixels different to square colour
-        mapped_square_colour = test_gui.design.map_rgb(
+        mapped_square_colour = test_gui.display.map_rgb(
             test_gui.get_square_colour(square_coords)
         )
         ranges_inside_image = [
             coord
             for coord, px_colour in zip(
-                test_gui.get_square_range(square_coords), square_pxs
+                test_gui.get_square_range(square_coords, scaled=True), square_pxs
             )
             if px_colour != mapped_square_colour
         ]
         # Loops through x and y coordinates separately for square and filtered pixels
-        for square_coord, range_inside_image in zip(
-            test_gui.square_to_pixel(square_coords),
+        for square_coord, range_inside_image, scaled_square_size in zip(
+            test_gui.square_to_pixel(square_coords, scaled=True),
             zip(*ranges_inside_image),
+            test_gui.scale_coords([test_gui.square_size] * 2),
         ):
-            # Checks padding on either side differs by 0 or 1 (even/odd total padding)
+            # Checks paddings either side differ by at most 2 (allows rounding errors)
             self.assertLessEqual(
                 abs(
                     min(range_inside_image)
                     + max(range_inside_image)
                     - 2 * square_coord
-                    - self.square_size
+                    - scaled_square_size
                 ),
-                1,
+                2,
             )
 
     def check_piece_image_colours(self, test_gui, square_pxs, piece):
@@ -125,15 +126,24 @@ class ChessGUITest(unittest.TestCase):
         image_colour = Counter(square_pxs).most_common(2)[1][0]
         correct_piece_colour = "white" if piece.isupper() else "black"
         self.assertEqual(
-            test_gui.design.unmap_rgb(image_colour),
+            test_gui.display.unmap_rgb(image_colour),
             pygame.Color(correct_piece_colour),
+            (
+                piece,
+                [
+                    (test_gui.display.unmap_rgb(x), num)
+                    for x, num in Counter(square_pxs).most_common(10)
+                ],
+            ),
         )
 
     def find_move_buttons(self, test_gui):
         """Generator yielding all square coordinates shown as possible moves"""
         for square_coords in test_gui.chess.get_rows_and_columns():
             if (
-                test_gui.design.get_at(self.test_gui.square_to_pixel(square_coords))
+                test_gui.display.get_at(
+                    test_gui.scale_coords(self.test_gui.square_to_pixel(square_coords))
+                )
                 == test_gui.move_button_colour
             ):
                 yield square_coords
@@ -141,11 +151,14 @@ class ChessGUITest(unittest.TestCase):
     def simulate_button_click(self, test_gui, square_coords):
         """Simulates a button press at the given coordinates"""
         test_coords = test_gui.get_square_rect(square_coords).center
-        pygame.mouse.set_pos(*test_gui.design_coord_to_display(test_coords))
-        test_gui.mainloop(1)
+        pygame.event.set_grab(True)
+        test_gui.mainloop(100)
+        pygame.mouse.set_pos(*test_gui.scale_coords(test_coords))
+        pygame.event.set_grab(False)
+        test_gui.mainloop(100)
         pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.CLICK
         pygame_widgets.widget.WidgetHandler.main([])
-        test_gui.mainloop(1)
+        test_gui.mainloop(100)
 
     def test_showing_moves(self):
         """Tests that moves are shown correctly when pieces are clicked"""
