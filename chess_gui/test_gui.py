@@ -1,5 +1,6 @@
 import unittest
 from collections import Counter
+from itertools import chain, cycle, product
 
 import pygame
 import pygame_widgets
@@ -7,6 +8,8 @@ import pygame_widgets
 from chess_gui.GUI import ChessGUI
 from core_chess.chess_logic import EMPTY_FEN
 from core_chess.test_chess_logic import TEST_FENS
+
+TEST_DISPLAY_SIZES = list(product(range(500, 1500, 200), repeat=2))
 
 
 class ChessGUITest(unittest.TestCase):
@@ -65,14 +68,20 @@ class ChessGUITest(unittest.TestCase):
 
     def test_piece_image_positioning_and_colours(self):
         # Creates several test GUI instances for different FENs
-        for fen in TEST_FENS:
-            with ChessGUI(fen=fen) as test_gui:
+        for display_size, fen in chain(
+            zip(cycle(TEST_DISPLAY_SIZES[:1]), TEST_FENS),
+            zip(TEST_DISPLAY_SIZES, cycle(TEST_FENS[:1])),
+        ):
+            with ChessGUI(display_size=display_size, fen=fen) as test_gui:
                 test_pxarray = pygame.PixelArray(test_gui.display)
                 # Loops through squares, performing the tests if there is a piece there
                 for square_coords in test_gui.chess.get_rows_and_columns():
                     if piece := test_gui.chess.get_piece_at_square(square_coords):
                         with self.subTest(
-                            fen=fen, square_coords=square_coords, piece=piece
+                            display_size=display_size,
+                            fen=fen,
+                            square_coords=square_coords,
+                            piece=piece,
                         ):
                             # Stores the mapped colour values for pixels in the square
                             square_pxs = [

@@ -18,11 +18,11 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 class ChessGUI:
     """Displays a GUI for a given chess state"""
 
-    def __init__(self, fen=STARTING_FEN):
+    def __init__(self, display_size=(0, 0), fen=STARTING_FEN):
         """Initialises pygame components and draws board"""
         pygame.init()
         pygame.display.set_caption("Chess GUI")
-        self.display = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
+        self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square = None
         self.running = True
 
