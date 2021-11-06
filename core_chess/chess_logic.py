@@ -9,15 +9,14 @@ class Chess:
         self.pieces = "KQRBNPkqrbnp"
         self.players = "WB"
         (
-            positions,
+            fen_positions,
             self.next_colour,
             self.castling,
             self.en_passant_square,
             self.half_move_clock,
             self.move_number,
-        ) = self.fen_portions(fen)
-        self.board = dict.fromkeys(list(self.pieces) + ["game"], 0)
-        self.fen_positions(positions)
+        ) = fen.split()
+        self.fen_positions_to_bitboards(fen_positions)
 
     def fen_portions(self, fen):
         return fen.split()
@@ -25,16 +24,20 @@ class Chess:
     def fens_portion(self, fens, portion_i):
         return map(lambda fen: self.fen_portions(fen)[portion_i], fens)
 
-    def fen_positions(self, positions):
-        for row_i, row in enumerate(positions.split("/")):
-            piece_i = 0
+    def fen_positions_to_bitboards(self, fen_positions):
+        # Initialise 'self.boards' dictionary with keys as pieces
+        self.boards = dict.fromkeys(list(self.pieces) + ["game"], 0)
+
+        # Calculate integer representing bitboard for each piece and whole game from FEN
+        for row_i, row in enumerate(fen_positions.split("/")):
+            column_i = 0
             for piece in row:
                 if piece.isnumeric():
-                    piece_i += int(piece)
+                    column_i += int(piece)
                 else:
-                    self.board[piece] += 1 << self.get_bitboard_index((row_i, piece_i))
-                    self.board["game"] += 1 << self.get_bitboard_index((row_i, piece_i))
-                    piece_i += 1
+                    bitboard_index = self.get_bitboard_index((row_i, column_i))
+                    self.add_bitboard_index(piece, bitboard_index)
+                    column_i += 1
 
     @property
     def fen(self):
@@ -67,7 +70,7 @@ class Chess:
         )
 
     def get_bitboard(self, piece):
-        return self.board[piece]
+        return self.boards[piece]
 
     def get_bitboard_index(self, square_coords):
         row, column = square_coords
@@ -87,10 +90,12 @@ class Chess:
         return product(range(8), repeat=2)
 
     def remove_bitboard_index(self, piece, index):
-        self.board[piece] &= ~(1 << index)
+        self.boards[piece] &= ~(1 << index)
+        self.boards["game"] &= ~(1 << index)
 
     def add_bitboard_index(self, piece, index):
-        self.board[piece] |= 1 << index
+        self.boards[piece] |= 1 << index
+        self.boards["game"] |= 1 << index
 
     def replace_piece_bitboard_index(self, piece, old_index, new_index):
         self.remove_bitboard_index(piece, old_index)
