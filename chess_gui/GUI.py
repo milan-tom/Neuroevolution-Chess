@@ -156,7 +156,9 @@ class ChessGUI:
         else:
             self.draw_pieces()
             self.selected_square = old_square_coords
-            for new_square_coords in self.chess.get_moves(piece, old_square_coords):
+            for new_square_coords in self.chess.legal_moves_from_square(
+                piece, old_square_coords
+            ):
                 self.draw_button_at_coordinates(
                     square_coords=new_square_coords,
                     colour=self.move_button_colour,
