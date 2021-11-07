@@ -111,7 +111,6 @@ class Chess:
             for piece in self.pieces:
                 if self.piece_exists_at_square(square, self.get_bitboard(piece)):
                     return piece
-        return None
 
     def get_rows_and_columns(self) -> Iterable[Coord]:
         """Returns generator yielding all possible square coordinates"""
