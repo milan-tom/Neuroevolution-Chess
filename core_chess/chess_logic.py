@@ -44,7 +44,7 @@ class Chess:
         Store piece positions obtained from positions portion of FEN as dictionary with
         key for each piece and game as a whole and values as bitboard for given piece
         """
-        # Initialise 'self.boards' dictionary with keys as pieces
+        # Initialize 'self.boards' dictionary with empty board for each piece key
         self.boards = dict.fromkeys(list(self.pieces) + ["game"], 0)
 
         # Calculate integer representing bitboard for each piece and whole game from FEN
@@ -55,7 +55,7 @@ class Chess:
                     column_i += int(piece)
                 else:
                     bitboard_index = self.get_bitboard_index((row_i, column_i))
-                    self.add_bitboard_index(piece, bitboard_index)
+                    self.add_bitboard_index(piece, bitboard_index, edit_game_board=True)
                     column_i += 1
 
     @property
@@ -117,21 +117,27 @@ class Chess:
         """Returns generator yielding all possible square coordinates"""
         return product(range(8), repeat=2)
 
-    def remove_bitboard_index(self, piece: str, index: int) -> None:
+    def add_bitboard_index(
+        self, piece: str, index: int, edit_game_board: bool = False
+    ) -> None:
         """
-        Removes presence of piece to index in game's and piece's bitboards (equivalent
-        to changing bit at index to 0)
-        """
-        self.boards[piece] &= ~(1 << index)
-        self.boards["game"] &= ~(1 << index)
-
-    def add_bitboard_index(self, piece: str, index: int) -> None:
-        """
-        Adds presence of piece to index in game's and piece's bitboards (equivalent to
-        changing bit at index to 1)
+        Adds presence of piece to index piece's (and optionally game's) bitboards
+        (equivalent to changing bit at index to 1)
         """
         self.boards[piece] |= 1 << index
-        self.boards["game"] |= 1 << index
+        if edit_game_board:
+            self.add_bitboard_index("game", index)
+
+    def remove_bitboard_index(
+        self, piece: str, index: int, edit_game_board: bool = False
+    ) -> None:
+        """
+        Removes presence of piece at index piece's (and optionally game's) bitboards
+        (equivalent to changing bit at index to 0)
+        """
+        self.boards[piece] &= ~(1 << index)
+        if edit_game_board:
+            self.remove_bitboard_index("game", index)
 
     def replace_piece_bitboard_index(
         self, piece: str, old_index: int, new_index: int
