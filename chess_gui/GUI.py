@@ -1,24 +1,36 @@
-import os
+from __future__ import annotations
 from itertools import cycle, product
+import os
 from time import process_time
+from types import TracebackType
+from typing import Callable, Iterable, Union
 
 import pygame
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from core_chess.chess_logic import Chess, STARTING_FEN
+from core_chess.chess_logic import Chess, Coord, STARTING_FEN
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
 
 class ChessGUI:
-    """Displays a GUI for a given chess state"""
+    """
+    Enables the visualization of any board state via a GUI:
+        - Displays moves possible for selected piece
+        - Allows human input for moves from current position
+    Coordinate conventions:
+        - Pixel coordinates -> Increases moving right and downwards from top-left (0, 0)
+        - Dimensional coordinates -> Uniquely identifies square via row and column in
+          8x8 chess board (0-based increasing from top to bottom and left to right)
+    """
 
-    def __init__(self, display_size=(0, 0), fen=STARTING_FEN):
-        """Initialises pygame components and draws board"""
+    def __init__(self, display_size: Coord = (0, 0), fen=STARTING_FEN) -> None:
+        """Initialises chess board state, pygame components, and draws board"""
         pygame.init()
         pygame.display.set_caption("Chess GUI")
+
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square = None
         self.running = True
@@ -51,16 +63,18 @@ class ChessGUI:
         # Draws the board automatically
         self.draw_board()
 
-    def clear(self):
+    def clear(self) -> None:
+        """Clears display (fills with black)"""
         self.design.fill("black")
         pygame_widgets.widget.WidgetHandler._widgets = []
 
-    def update(self):
+    def update(self) -> None:
         """Scales dummy design window to actual screen size and renders changes"""
         pygame.transform.smoothscale(self.design, self.display.get_size(), self.display)
         pygame.display.flip()
 
-    def scale_coords(self, coords):
+    def scale_coords(self, coords: Iterable[Coord]) -> list[Coord]:
+        """Generates coordinates after design coordinates scaled to display"""
         return [
             coord * display_size // design_size
             for coord, design_size, display_size in zip(
@@ -68,11 +82,13 @@ class ChessGUI:
             )
         ]
 
-    def dimension_to_pixel(self, dimension):
+    def dimension_to_pixel(self, dimension: int) -> int:
+        """Scales row/column to pixel coordinate"""
         return dimension * self.square_size
 
-    def square_to_pixel(self, square_coords, scaled=False):
-        square_pixel_coords = list(map(self.dimension_to_pixel, square_coords[::-1]))
+    def square_to_pixel(self, square: Coord, scaled: bool = False) -> Coord:
+        """Returns (scaled) pixel coordinate equivalent of square coordinate"""
+        square_pixel_coords = list(map(self.dimension_to_pixel, square[::-1]))
         return self.scale_coords(square_pixel_coords) if scaled else square_pixel_coords
 
     def get_square_rect(self, square_coords) -> pygame.Rect:
@@ -81,11 +97,9 @@ class ChessGUI:
             *(self.square_to_pixel(square_coords) + [self.square_size] * 2)
         )
 
-    def get_dimension_range(self, dimension):
-        return range(*self.square_to_pixel((dimension + 1, dimension)))
-
-    def get_square_range(self, square_coords, scaled=False):
-        square_details = self.get_square_rect(square_coords)
+    def get_square_range(self, square: Coord, scaled: bool = False) -> Iterable[Coord]:
+        """Returns all (scaled) coordinates within specified square"""
+        square_details = self.get_square_rect(square)
         if scaled:
             square_details = self.scale_coords(square_details)
         square_x, square_y, x_square_size, y_square_size = square_details
@@ -94,28 +108,30 @@ class ChessGUI:
             range(square_y, square_y + y_square_size),
         )
 
-    def get_square_colour(self, square_coords):
-        return self.board_colours[sum(square_coords) % 2]
+    def get_square_colour(self, square: Coord) -> tuple[int, int, int]:
+        """Returns colour on board of given square"""
+        return self.board_colours[sum(square) % 2]
 
-    def draw_button_at_coordinates(
+    def draw_button_at_square(
         self,
-        square_coords,
-        colour,
-        on_release,
-        on_release_params=(),
-        image=None,
-    ):
+        square: Coord,
+        colour: str,
+        command_function: Callable,
+        parameters: Union[tuple, list],
+        image: pygame.Surface = None,
+    ) -> None:
+        """Draws button at given square"""
         button = Button(
             self.display,
-            *self.scale_coords(self.get_square_rect(square_coords)),
+            *self.scale_coords(self.get_square_rect(square)),
             inactiveColour=colour,
             image=image,
-            onRelease=on_release,
-            onReleaseParams=on_release_params,
+            onRelease=command_function,
+            onReleaseParams=parameters,
         )
         button.draw()
 
-    def draw_board_squares(self):
+    def draw_board_squares(self) -> None:
         """Draws the board on the screen"""
         # Loops through each row and column, drawing each square within the board
         for square_coords in self.chess.get_rows_and_columns():
@@ -126,13 +142,13 @@ class ChessGUI:
             )
         self.update()
 
-    def draw_pieces(self):
+    def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
         # Loops through each row and column, drawing squares and pieces
         for square_coords in self.chess.get_rows_and_columns():
             # Draws piece at square if it exists
             if piece := self.chess.get_piece_at_square(square_coords):
-                self.draw_button_at_coordinates(
+                self.draw_button_at_square(
                     square_coords,
                     self.get_square_colour(square_coords),
                     self.show_moves,
@@ -141,45 +157,44 @@ class ChessGUI:
                 )
         pygame.display.flip()
 
-    def draw_board(self):
+    def draw_board(self) -> None:
         """Displays the current state of the board"""
         self.clear()
         self.draw_board_squares()
         self.draw_pieces()
 
-    def show_moves(self, piece, old_square_coords):
+    def show_moves(self, piece: str, old_square: Coord) -> None:
+        """Display move buttons for clicked piece (double clicking clears moves)"""
         if self.selected_square is not None:
             self.draw_board()
 
-        if self.selected_square == old_square_coords:
+        if self.selected_square == old_square:
             self.selected_square = None
         else:
             self.draw_pieces()
-            self.selected_square = old_square_coords
+            self.selected_square = old_square
             for new_square_coords in self.chess.legal_moves_from_square(
-                piece, old_square_coords
+                piece, old_square
             ):
-                self.draw_button_at_coordinates(
-                    square_coords=new_square_coords,
+                self.draw_button_at_square(
+                    square=new_square_coords,
                     colour=self.move_button_colour,
-                    on_release=self.move_piece,
-                    on_release_params=(
-                        old_square_coords,
-                        new_square_coords,
-                    ),
+                    command_function=self.move_piece,
+                    parameters=(old_square, new_square_coords),
                 )
             self.update()
 
-    def move_piece(self, old_square_coords, new_square_coords):
-        self.chess.move(old_square_coords, new_square_coords)
+    def move_piece(self, old_square: Coord, new_square: Coord) -> None:
+        """Moves piece from one square to another and updates GUI accordingly"""
+        self.chess.move(old_square, new_square)
         self.draw_board()
 
-    def __enter__(self):
+    def __enter__(self) -> ChessGUI:
         """Enables use of GUI in 'with' statement"""
         return self
 
-    def mainloop(self, time_limit=float("inf")):
-        """Keeps GUI running, handling events and rendering changes"""
+    def mainloop(self, time_limit: int = float("inf")) -> None:
+        """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
         start_time = process_time()
         while self.running and (process_time() - start_time) < time_limit:
@@ -190,7 +205,12 @@ class ChessGUI:
             pygame_widgets.update(events)
             pygame.display.update()
 
-    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+    def __exit__(
+        self,
+        exc_type: BaseException = None,
+        exc_val: BaseException = None,
+        exc_tb: TracebackType = None,
+    ) -> None:
         """Enables use of GUI in 'with' statement, closing when with statement ends"""
         self.running = False
 
