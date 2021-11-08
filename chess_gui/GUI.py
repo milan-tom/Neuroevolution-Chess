@@ -118,14 +118,13 @@ class ChessGUI:
         colour: str,
         command_function: Callable,
         parameters: Union[tuple, list],
-        image: pygame.Surface = None,
     ) -> None:
         """Draws button at given square"""
         button = Button(
             self.display,
             *self.scale_coords(self.get_square_rect(square)),
             inactiveColour=colour,
-            image=image,
+            image=self.piece_images.get(self.chess.get_piece_at_square(square)),
             onRelease=command_function,
             onReleaseParams=parameters,
         )
@@ -153,7 +152,6 @@ class ChessGUI:
                     self.get_square_colour(square_coords),
                     self.show_moves,
                     (piece, square_coords),
-                    self.piece_images[piece],
                 )
         pygame.display.flip()
 
