@@ -153,7 +153,8 @@ class Chess:
         row, column = square
         return (
             (row + row_change, column + column_change)
-            for row_change, column_change in product(range(-1, 2), repeat=2)
+            for row_change in range(-bool(row), (row < 7) + 1)
+            for column_change in range(-bool(column), (column < 7) + 1)
             if row_change or column_change
         )
 
