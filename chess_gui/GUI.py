@@ -1,9 +1,9 @@
 from __future__ import annotations
 from itertools import cycle, product
-import os
 from time import process_time
 from types import TracebackType
 from typing import Callable, Iterable, Union
+import os
 
 import pygame
 import pygame_widgets
@@ -48,11 +48,11 @@ class ChessGUI:
 
         # Imports all piece images (source:
         # https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
-        image_path = os.path.join(os.path.dirname(__file__), "images", "{}{}.png")
+        image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
         self.piece_images = {}
         for piece in self.chess.pieces:
             piece_image = pygame.image.load(
-                image_path.format(self.chess.players[piece.islower()], piece.upper())
+                image_path.format(self.chess.get_piece_side(piece), piece.upper())
             )
             cropped_image = piece_image.subsurface(piece_image.get_bounding_rect())
             self.piece_images[piece] = pygame.transform.scale(

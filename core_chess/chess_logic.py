@@ -20,15 +20,16 @@ class Chess:
         Forsyth–Edwards Notation (FEN) argument
         """
         self.pieces = "KQRBNPkqrbnp"
-        self.players = "WB"
+        self.players = ["WHITE", "BLACK"]
         (
             fen_positions,
-            self.next_colour,
+            fen_next_colour,
             self.castling,
             self.en_passant_square,
             self.half_move_clock,
             self.move_number,
         ) = fen.split()
+        self.next_colour = self.players["wb".index(fen_next_colour)]
         self.fen_positions_to_bitboards(fen_positions)
 
     def fen_portions(self, fen: str) -> list[str]:
@@ -45,7 +46,7 @@ class Chess:
         key for each piece and game as a whole and values as bitboard for given piece
         """
         # Initialize 'self.boards' dictionary with empty board for each piece key
-        self.boards = dict.fromkeys(list(self.pieces) + ["game"], 0)
+        self.boards = dict.fromkeys(list(self.pieces) + ["GAME"] + self.players, 0)
 
         # Calculate integer representing bitboard for each piece and whole game from FEN
         for row_i, row in enumerate(fen_positions.split("/")):
@@ -80,13 +81,17 @@ class Chess:
         return " ".join(
             (
                 "/".join(rows),
-                self.next_colour,
+                self.next_colour[0].lower(),
                 self.castling,
                 self.en_passant_square,
                 self.half_move_clock,
                 self.move_number,
             )
         )
+
+    def get_piece_side(self, piece: str) -> str:
+        """Returns side which piece belongs to based on case of piece symbol"""
+        return self.players[piece.islower()]
 
     def get_bitboard(self, piece: str) -> int:
         """Returns integer representing bitboard of given piece"""
@@ -107,7 +112,7 @@ class Chess:
 
     def get_piece_at_square(self, square: Coord) -> str:
         """Returns piece at square on chess board if there is one"""
-        if self.piece_exists_at_square(square, "game"):
+        if self.piece_exists_at_square(square, "GAME"):
             for piece in self.pieces:
                 if self.piece_exists_at_square(square, piece):
                     return piece
@@ -125,7 +130,7 @@ class Chess:
         """
         self.boards[piece] |= 1 << index
         if edit_game_board:
-            self.add_bitboard_index("game", index)
+            self.add_bitboard_index("GAME", index)
 
     def remove_bitboard_index(
         self, piece: str, index: int, edit_game_board: bool = False
@@ -136,7 +141,7 @@ class Chess:
         """
         self.boards[piece] &= ~(1 << index)
         if edit_game_board:
-            self.remove_bitboard_index("game", index)
+            self.remove_bitboard_index("GAME", index)
 
     def replace_piece_bitboard_index(
         self, piece: str, old_index: int, new_index: int
@@ -162,7 +167,7 @@ class Chess:
         """Moves piece at given square to new square"""
         old_bitboard_index = self.get_bitboard_index(old_square)
         new_bitboard_index = self.get_bitboard_index(new_square)
-        for piece in ("game", self.get_piece_at_square(old_square)):
+        for piece in ("GAME", self.get_piece_at_square(old_square)):
             self.replace_piece_bitboard_index(
                 piece, old_bitboard_index, new_bitboard_index
             )
