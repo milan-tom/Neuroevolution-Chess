@@ -1,5 +1,6 @@
 from itertools import product
-from typing import Iterable
+from operator import and_, or_
+from typing import Callable, Iterable
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
@@ -56,7 +57,7 @@ class Chess:
                     column_i += int(piece)
                 else:
                     bitboard_index = self.get_bitboard_index((row_i, column_i))
-                    self.add_bitboard_index(piece, bitboard_index, edit_game_board=True)
+                    self.add_bitboard_index(piece, bitboard_index)
                     column_i += 1
 
     @property
@@ -121,27 +122,25 @@ class Chess:
         """Returns generator yielding all possible square coordinates"""
         return product(range(8), repeat=2)
 
-    def add_bitboard_index(
-        self, piece: str, index: int, edit_game_board: bool = False
-    ) -> None:
-        """
-        Adds presence of piece to index piece's (and optionally game's) bitboards
-        (equivalent to changing bit at index to 1)
-        """
-        self.boards[piece] |= 1 << index
-        if edit_game_board:
-            self.add_bitboard_index("GAME", index)
+    def get_bitboards_to_edit(self, piece: str) -> tuple:
+        """Returns tuple of bitboards requiring editing when moving piece"""
+        return piece, self.get_piece_side(piece), "GAME"
 
-    def remove_bitboard_index(
-        self, piece: str, index: int, edit_game_board: bool = False
-    ) -> None:
+    def edit_bitboard(self, piece: str, mask: int, command: Callable):
         """
-        Removes presence of piece at index piece's (and optionally game's) bitboards
-        (equivalent to changing bit at index to 0)
+        Edits all bitboards requiring editing when moving piece by applying given
+        function between bitboard and mask at index
         """
-        self.boards[piece] &= ~(1 << index)
-        if edit_game_board:
-            self.remove_bitboard_index("GAME", index)
+        for bitboard in self.get_bitboards_to_edit(piece):
+            self.boards[bitboard] = command(self.get_bitboard(bitboard), mask)
+
+    def add_bitboard_index(self, piece: str, index: int):
+        """Adds presence of piece to required bitboards (changes bit at index to 1)"""
+        self.edit_bitboard(piece, 1 << index, or_)
+
+    def remove_bitboard_index(self, piece: str, index: int):
+        """Adds presence of piece to required bitboards (changes bit at index to 0)"""
+        self.edit_bitboard(piece, ~(1 << index), and_)
 
     def replace_piece_bitboard_index(
         self, piece: str, old_index: int, new_index: int
@@ -165,9 +164,8 @@ class Chess:
 
     def move(self, old_square: Coord, new_square: Coord) -> None:
         """Moves piece at given square to new square"""
-        old_bitboard_index = self.get_bitboard_index(old_square)
-        new_bitboard_index = self.get_bitboard_index(new_square)
-        for piece in ("GAME", self.get_piece_at_square(old_square)):
-            self.replace_piece_bitboard_index(
-                piece, old_bitboard_index, new_bitboard_index
-            )
+        self.replace_piece_bitboard_index(
+            self.get_piece_at_square(old_square),
+            self.get_bitboard_index(old_square),
+            self.get_bitboard_index(new_square),
+        )
