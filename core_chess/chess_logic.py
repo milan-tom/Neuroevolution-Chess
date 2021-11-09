@@ -101,15 +101,15 @@ class Chess:
         row, column = square
         return (7 - row) * 8 + 7 - column
 
-    def piece_exists_at_square(self, square: Coord, bitboard: int) -> bool:
+    def piece_exists_at_square(self, square: Coord, piece: str) -> bool:
         """Checks whether piece exists at square for given board"""
-        return bitboard & (1 << self.get_bitboard_index(square))
+        return self.get_bitboard(piece) & (1 << self.get_bitboard_index(square))
 
     def get_piece_at_square(self, square: Coord) -> str:
         """Returns piece at square on chess board if there is one"""
-        if self.piece_exists_at_square(square, self.get_bitboard("game")):
+        if self.piece_exists_at_square(square, "game"):
             for piece in self.pieces:
-                if self.piece_exists_at_square(square, self.get_bitboard(piece)):
+                if self.piece_exists_at_square(square, piece):
                     return piece
 
     def get_rows_and_columns(self) -> Iterable[Coord]:
