@@ -1,8 +1,13 @@
+"""
+A chess GUI, enabling visualisation of a chess states and making moves from the current
+state
+"""
+
 from __future__ import annotations
 from itertools import cycle, product
 from time import process_time
 from types import TracebackType
-from typing import Callable, Iterable, Union
+from typing import Callable, Iterable, Optional, Union
 import os
 
 import pygame
@@ -32,7 +37,7 @@ class ChessGUI:
         pygame.display.set_caption("Chess GUI")
 
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
-        self.selected_square = None
+        self.selected_square: Optional[Coord] = None
         self.running = True
 
         # Initialises chess object to manage chess rules for GUI
@@ -73,7 +78,7 @@ class ChessGUI:
         pygame.transform.smoothscale(self.design, self.display.get_size(), self.display)
         pygame.display.flip()
 
-    def scale_coords(self, coords: Iterable[Coord]) -> list[Coord]:
+    def scale_coords(self, coords: Iterable[int]) -> list[int]:
         """Generates coordinates after design coordinates scaled to display"""
         return [
             coord * display_size // design_size
@@ -88,13 +93,15 @@ class ChessGUI:
 
     def square_to_pixel(self, square: Coord, scaled: bool = False) -> Coord:
         """Returns (scaled) pixel coordinate equivalent of square coordinate"""
-        square_pixel_coords = list(map(self.dimension_to_pixel, square[::-1]))
-        return self.scale_coords(square_pixel_coords) if scaled else square_pixel_coords
+        square_pixel_coords = map(self.dimension_to_pixel, square[::-1])
+        if scaled:
+            return self.scale_coords(square_pixel_coords)
+        return list(square_pixel_coords)
 
-    def get_square_rect(self, square_coords) -> pygame.Rect:
+    def get_square_rect(self, square: Coord) -> pygame.Rect:
         """Returns pygame 'Rect' object for specified row and column"""
         return pygame.Rect(
-            *(self.square_to_pixel(square_coords) + [self.square_size] * 2)
+            *(list(self.square_to_pixel(square)) + [self.square_size] * 2)
         )
 
     def get_square_range(self, square: Coord, scaled: bool = False) -> Iterable[Coord]:
@@ -115,7 +122,7 @@ class ChessGUI:
     def draw_button_at_square(
         self,
         square: Coord,
-        colour: str,
+        colour: tuple[int, int, int],
         command_function: Callable,
         parameters: Union[tuple, list],
     ) -> None:
@@ -191,7 +198,7 @@ class ChessGUI:
         """Enables use of GUI in 'with' statement"""
         return self
 
-    def mainloop(self, time_limit: int = float("inf")) -> None:
+    def mainloop(self, time_limit: Union[int, float] = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
         start_time = process_time()

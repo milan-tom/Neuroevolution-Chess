@@ -1,11 +1,16 @@
+"""
+Handles all logic concerning initialising a chess state, generating moves from that
+state, and executing them on the state
+"""
+
 from itertools import product
 from operator import and_, or_
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional, Sequence
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
-Coord = tuple[int, int]
+Coord = Sequence[int]
 
 
 class Chess:
@@ -109,10 +114,10 @@ class Chess:
 
     def piece_exists_at_square(self, square: Coord, piece: str) -> bool:
         """Checks whether piece exists at square for given board"""
-        return self.get_bitboard(piece) & (1 << self.get_bitboard_index(square))
+        return bool(self.get_bitboard(piece) & (1 << self.get_bitboard_index(square)))
 
-    def get_piece_at_square(self, square: Coord) -> str:
-        """Returns piece at square on chess board if there is one"""
+    def get_piece_at_square(self, square: Coord) -> Optional[str]:
+        """Returns piece at square on chess board if there is one and 'None' if not"""
         if self.piece_exists_at_square(square, "GAME"):
             for piece in self.pieces:
                 if self.piece_exists_at_square(square, piece):
@@ -134,11 +139,11 @@ class Chess:
         for bitboard in self.get_bitboards_to_edit(piece):
             self.boards[bitboard] = command(self.get_bitboard(bitboard), mask)
 
-    def add_bitboard_index(self, piece: str, index: int):
+    def add_bitboard_index(self, piece: str, index: int) -> None:
         """Adds presence of piece to required bitboards (changes bit at index to 1)"""
         self.edit_bitboard(piece, 1 << index, or_)
 
-    def remove_bitboard_index(self, piece: str, index: int):
+    def remove_bitboard_index(self, piece: str, index: int) -> None:
         """Adds presence of piece to required bitboards (changes bit at index to 0)"""
         self.edit_bitboard(piece, ~(1 << index), and_)
 
