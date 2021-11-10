@@ -14,10 +14,71 @@ import pygame
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from core_chess.chess_logic import Chess, Coord, STARTING_FEN
+from core_chess.chess_logic import Chess, Coord, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
+from core_chess.chess_logic import get_piece_side
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
+
+# Imports all piece images (source:
+# https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
+image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
+PIECE_IMAGES = {
+    piece: (
+        piece_image := pygame.image.load(
+            image_path.format(get_piece_side(piece), piece.upper())
+        )
+    ).subsurface(piece_image.get_bounding_rect())
+    for piece in PIECES
+}
+
+
+class Design(pygame.Surface):
+    """Represents the design surface used by the GUI"""
+
+    def __init__(self):
+        """Initialises design surface and relevant attributes"""
+        # Initialises parent class to creates dummy window for implementing design,
+        # enabling scaling to any screen
+        super().__init__((1536, 864))
+
+        self.square_size = 108  # Size of square in pixels to fill dummy window's height
+        # Stores colour codes for light and dark squares, respectively
+        self.board_colours = (240, 217, 181), (187, 129, 65)
+
+    def clear(self) -> None:
+        """Clears display (fills with black)"""
+        self.fill("black")
+        # pylint: disable=W0212
+        pygame_widgets.widget.WidgetHandler._widgets = []
+
+    def dimension_to_pixel(self, dimension: int) -> int:
+        """Scales row/column to pixel coordinate"""
+        return dimension * self.square_size
+
+    def square_to_pixel(self, square: Coord) -> Coord:
+        """Returns (scaled) pixel coordinate equivalent of square coordinate"""
+        return list(map(self.dimension_to_pixel, square[::-1]))
+
+    def get_square_rect(self, square: Coord) -> pygame.Rect:
+        """Returns pygame 'Rect' object for specified row and column"""
+        return pygame.Rect(
+            *(list(self.square_to_pixel(square)) + [self.square_size] * 2)
+        )
+
+    def get_square_colour(self, square: Coord) -> tuple[int, int, int]:
+        """Returns colour on board of given square"""
+        return self.board_colours[sum(square) % 2]
+
+    def draw_board_squares(self) -> None:
+        """Draws the board on the screen"""
+        # Loops through each row and column, drawing each square within the board
+        for square_coords in ROWS_AND_COLUMNS:
+            pygame.draw.rect(
+                self,
+                self.get_square_colour(square_coords),
+                self.get_square_rect(square_coords),
+            )
 
 
 class ChessGUI:
@@ -36,42 +97,26 @@ class ChessGUI:
         pygame.init()
         pygame.display.set_caption("Chess GUI")
 
+        self.design = Design()
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square: Optional[Coord] = None
         self.running = True
+        self.move_button_colour = (0, 255, 0)
 
         # Initialises chess object to manage chess rules for GUI
         self.chess = Chess(fen)
 
-        # Stores colour codes for light and dark squares, respectively, and move button
-        self.board_colours = (240, 217, 181), (187, 129, 65)
-        self.move_button_colour = (0, 255, 0)
-
-        # Creates dummy window for implementing design, enabling scaling to any screen
-        self.design = pygame.Surface((1536, 864))
-        self.square_size = 108  # Size of square in pixels to fill dummy window's height
-
-        # Imports all piece images (source:
-        # https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
-        image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
-        self.piece_images = {}
-        for piece in self.chess.pieces:
-            piece_image = pygame.image.load(
-                image_path.format(self.chess.get_piece_side(piece), piece.upper())
+        # Scales piece images to size of GUI
+        self.piece_images = {
+            piece: pygame.transform.scale(
+                piece_image,
+                self.scale_coords(piece_image.get_size()),
             )
-            cropped_image = piece_image.subsurface(piece_image.get_bounding_rect())
-            self.piece_images[piece] = pygame.transform.scale(
-                cropped_image,
-                self.scale_coords(cropped_image.get_size()),
-            )
+            for piece, piece_image in PIECE_IMAGES.items()
+        }
 
         # Draws the board automatically
         self.draw_board()
-
-    def clear(self) -> None:
-        """Clears display (fills with black)"""
-        self.design.fill("black")
-        pygame_widgets.widget.WidgetHandler._widgets = []
 
     def update(self) -> None:
         """Scales dummy design window to actual screen size and renders changes"""
@@ -87,26 +132,9 @@ class ChessGUI:
             )
         ]
 
-    def dimension_to_pixel(self, dimension: int) -> int:
-        """Scales row/column to pixel coordinate"""
-        return dimension * self.square_size
-
-    def square_to_pixel(self, square: Coord, scaled: bool = False) -> Coord:
-        """Returns (scaled) pixel coordinate equivalent of square coordinate"""
-        square_pixel_coords = map(self.dimension_to_pixel, square[::-1])
-        if scaled:
-            return self.scale_coords(square_pixel_coords)
-        return list(square_pixel_coords)
-
-    def get_square_rect(self, square: Coord) -> pygame.Rect:
-        """Returns pygame 'Rect' object for specified row and column"""
-        return pygame.Rect(
-            *(list(self.square_to_pixel(square)) + [self.square_size] * 2)
-        )
-
     def get_square_range(self, square: Coord, scaled: bool = False) -> Iterable[Coord]:
         """Returns all (scaled) coordinates within specified square"""
-        square_details = self.get_square_rect(square)
+        square_details = self.design.get_square_rect(square)
         if scaled:
             square_details = self.scale_coords(square_details)
         square_x, square_y, x_square_size, y_square_size = square_details
@@ -114,10 +142,6 @@ class ChessGUI:
             range(square_x, square_x + x_square_size),
             range(square_y, square_y + y_square_size),
         )
-
-    def get_square_colour(self, square: Coord) -> tuple[int, int, int]:
-        """Returns colour on board of given square"""
-        return self.board_colours[sum(square) % 2]
 
     def draw_button_at_square(
         self,
@@ -129,7 +153,7 @@ class ChessGUI:
         """Draws button at given square"""
         button = Button(
             self.display,
-            *self.scale_coords(self.get_square_rect(square)),
+            *self.scale_coords(self.design.get_square_rect(square)),
             inactiveColour=colour,
             image=self.piece_images.get(self.chess.get_piece_at_square(square)),
             onRelease=command_function,
@@ -137,26 +161,15 @@ class ChessGUI:
         )
         button.draw()
 
-    def draw_board_squares(self) -> None:
-        """Draws the board on the screen"""
-        # Loops through each row and column, drawing each square within the board
-        for square_coords in self.chess.get_rows_and_columns():
-            pygame.draw.rect(
-                self.design,
-                self.get_square_colour(square_coords),
-                self.get_square_rect(square_coords),
-            )
-        self.update()
-
     def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
         # Loops through each row and column, drawing squares and pieces
-        for square_coords in self.chess.get_rows_and_columns():
+        for square_coords in ROWS_AND_COLUMNS:
             # Draws piece at square if it exists
             if piece := self.chess.get_piece_at_square(square_coords):
                 self.draw_button_at_square(
                     square_coords,
-                    self.get_square_colour(square_coords),
+                    self.design.get_square_colour(square_coords),
                     self.show_moves,
                     (piece, square_coords),
                 )
@@ -164,8 +177,9 @@ class ChessGUI:
 
     def draw_board(self) -> None:
         """Displays the current state of the board"""
-        self.clear()
-        self.draw_board_squares()
+        self.design.clear()
+        self.design.draw_board_squares()
+        self.update()
         self.draw_pieces()
 
     def show_moves(self, piece: str, old_square: Coord) -> None:
@@ -187,7 +201,6 @@ class ChessGUI:
                     command_function=self.move_piece,
                     parameters=(old_square, new_square_coords),
                 )
-            self.update()
 
     def move_piece(self, old_square: Coord, new_square: Coord) -> None:
         """Moves piece from one square to another and updates GUI accordingly"""
@@ -203,6 +216,7 @@ class ChessGUI:
         time_limit /= 1000
         start_time = process_time()
         while self.running and (process_time() - start_time) < time_limit:
+            # pylint: disable=superfluous-parens
             for event in (events := pygame.event.get()):
                 if event.type == pygame.QUIT:
                     self.__exit__()

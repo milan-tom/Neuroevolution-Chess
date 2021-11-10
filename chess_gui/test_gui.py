@@ -1,3 +1,5 @@
+"""Contains all unit tests for GUI"""
+
 import unittest
 from collections import Counter
 from itertools import chain, cycle, product
@@ -7,23 +9,51 @@ import pygame
 import pygame_widgets
 
 from chess_gui.gui import ChessGUI
-from core_chess.chess_logic import Coord, EMPTY_FEN
+from core_chess.chess_logic import Coord, EMPTY_FEN, ROWS_AND_COLUMNS
 from core_chess.test_chess_logic import TEST_FENS
 
 TEST_DISPLAY_SIZES = list(product(range(500, 1500, 200), repeat=2))
 
 
+def simulate_button_click(test_gui: ChessGUI, square_coords: Coord) -> None:
+    """Simulates a button press at the given coordinates"""
+    # pylint: disable=protected-access
+    test_coords = test_gui.design.get_square_rect(square_coords).center
+    pygame.event.set_grab(True)
+    test_gui.mainloop(100)
+    pygame.mouse.set_pos(*test_gui.scale_coords(test_coords))
+    pygame.event.set_grab(False)
+    test_gui.mainloop(100)
+    pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.CLICK
+    pygame_widgets.widget.WidgetHandler.main([])
+    test_gui.mainloop(100)
+
+
+def find_move_buttons(test_gui: ChessGUI) -> Iterable[Coord]:
+    """Generator yielding all square coordinates shown as possible moves"""
+    for square_coords in ROWS_AND_COLUMNS:
+        if (
+            test_gui.display.get_at(
+                test_gui.scale_coords(test_gui.design.square_to_pixel(square_coords))
+            )
+            == test_gui.move_button_colour
+        ):
+            yield square_coords
+
+
 class ChessGUITest(unittest.TestCase):
+    """TestCase subclass for GUI unit tests and relevant helper functions"""
+
     def test_square_fill(self) -> None:
         """Test if squares fill allocated space and handle borders correctly"""
         # Creates instance of GUI with empty board, preventing pieces from interfering
         with ChessGUI(fen=EMPTY_FEN) as test_gui:
             # Loops through beginnings of squares horizontally and vertically
-            for square_coords in test_gui.chess.get_rows_and_columns():
+            for square_coords in ROWS_AND_COLUMNS:
                 with self.subTest(square_coords=square_coords):
                     test_pxarray = pygame.PixelArray(test_gui.design)
                     # Checks all pixels in square have same colour as first pixel
-                    square_x, square_y = test_gui.square_to_pixel(square_coords)
+                    square_x, square_y = test_gui.design.square_to_pixel(square_coords)
                     square_colour = test_pxarray[square_x][square_y]
                     self.assertTrue(
                         all(
@@ -36,7 +66,7 @@ class ChessGUITest(unittest.TestCase):
         """Tests a sample of squares within the chess board to check square colours"""
         with ChessGUI() as test_gui:
             # Stores test square coordinates and expected colours in dictionary
-            light, dark = test_gui.board_colours
+            light, dark = test_gui.design.board_colours
             expected_colours_for_squares = {
                 light: (
                     (0, 0),  # Top-left square
@@ -57,12 +87,13 @@ class ChessGUITest(unittest.TestCase):
                     with self.subTest(square_coords=test_square):
                         self.assertEqual(
                             test_gui.design.get_at(
-                                test_gui.square_to_pixel(test_square)
+                                test_gui.design.square_to_pixel(test_square)
                             )[:-1],
                             expected_colour,
                         )
 
     def test_piece_image_positioning_and_colours(self) -> None:
+        """Tests that all pieces are centred and have the correct colour"""
         # Creates several test GUI instances for different FENs
         for display_size, fen in chain(
             zip(cycle(TEST_DISPLAY_SIZES[:1]), TEST_FENS),
@@ -71,7 +102,7 @@ class ChessGUITest(unittest.TestCase):
             with ChessGUI(display_size=display_size, fen=fen) as test_gui:
                 test_pxarray = pygame.PixelArray(test_gui.display)
                 # Loops through squares, performing the tests if there is a piece there
-                for square_coords in test_gui.chess.get_rows_and_columns():
+                for square_coords in ROWS_AND_COLUMNS:
                     if piece := test_gui.chess.get_piece_at_square(square_coords):
                         with self.subTest(
                             display_size=display_size,
@@ -99,7 +130,7 @@ class ChessGUITest(unittest.TestCase):
         square"""
         # Filters coordinates of pixels different to square colourss
         mapped_square_colour = test_gui.display.map_rgb(
-            test_gui.get_square_colour(squares)
+            test_gui.design.get_square_colour(squares)
         )
         ranges_inside_image = [
             coord
@@ -110,9 +141,9 @@ class ChessGUITest(unittest.TestCase):
         ]
         # Loops through x and y coordinates separately for square and filtered pixels
         for square_coord, range_inside_image, scaled_square_size in zip(
-            test_gui.square_to_pixel(squares, scaled=True),
+            test_gui.scale_coords(test_gui.design.square_to_pixel(squares)),
             zip(*ranges_inside_image),
-            test_gui.scale_coords([test_gui.square_size] * 2),
+            test_gui.scale_coords([test_gui.design.square_size] * 2),
         ):
             # Checks paddings either side differ by at most 2 (allows rounding errors)
             self.assertLessEqual(
@@ -146,42 +177,19 @@ class ChessGUITest(unittest.TestCase):
             ),
         )
 
-    def find_move_buttons(self, test_gui: ChessGUI) -> Iterable[Coord]:
-        """Generator yielding all square coordinates shown as possible moves"""
-        for square_coords in test_gui.chess.get_rows_and_columns():
-            if (
-                test_gui.display.get_at(
-                    test_gui.square_to_pixel(square_coords, scaled=True)
-                )
-                == test_gui.move_button_colour
-            ):
-                yield square_coords
-
-    def simulate_button_click(self, test_gui, square_coords) -> None:
-        """Simulates a button press at the given coordinates"""
-        test_coords = test_gui.get_square_rect(square_coords).center
-        pygame.event.set_grab(True)
-        test_gui.mainloop(100)
-        pygame.mouse.set_pos(*test_gui.scale_coords(test_coords))
-        pygame.event.set_grab(False)
-        test_gui.mainloop(100)
-        pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.CLICK
-        pygame_widgets.widget.WidgetHandler.main([])
-        test_gui.mainloop(100)
-
     def test_showing_moves(self) -> None:
         """Tests that moves are shown correctly when pieces are clicked"""
         with ChessGUI() as test_gui:
             test_square_coords = (6, 5)
 
             # Tests single click shows moves
-            self.simulate_button_click(test_gui, test_square_coords)
-            self.assertTrue(any(self.find_move_buttons(test_gui)))
+            simulate_button_click(test_gui, test_square_coords)
+            self.assertTrue(any(find_move_buttons(test_gui)))
 
             # Tests clicking same piece twice clears moves
-            self.simulate_button_click(test_gui, test_square_coords)
+            simulate_button_click(test_gui, test_square_coords)
             self.assertFalse(
-                any(self.find_move_buttons(test_gui)),
+                any(find_move_buttons(test_gui)),
             )
 
     def test_quit_button(self) -> None:

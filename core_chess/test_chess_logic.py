@@ -1,6 +1,8 @@
+"""Contains all unit tests for chess logic"""
+
 import unittest
 
-from core_chess.chess_logic import Chess, STARTING_FEN, EMPTY_FEN
+from core_chess.chess_logic import Chess, EMPTY_FEN, fens_portion, STARTING_FEN
 
 RANDOM_FENS = (
     "1r6/2R1k1pp/3bp3/5p2/4n3/BP2P3/3N1PPP/6K1 b - - 3 24",
@@ -24,6 +26,8 @@ TEST_FENS = (STARTING_FEN, EMPTY_FEN) + RANDOM_FENS
 
 
 class ChessRulesTest(unittest.TestCase):
+    """TestCase subclass for chess logic unit tests and relevant helper functions"""
+
     def test_fen_to_chess_state_conversion(self):
         """
         Tests conversion of FENs to bitboards and other board state-specific parameters
@@ -45,7 +49,7 @@ class ChessRulesTest(unittest.TestCase):
                 test_chess = Chess(original_fen)
                 test_chess.move(*move)
                 # Verifies that positions portions of actual and expected FENs match
-                self.assertEqual(*test_chess.fens_portion((test_chess.fen, new_fen), 0))
+                self.assertEqual(*fens_portion((test_chess.fen, new_fen), 0))
 
 
 if __name__ == "__main__":
