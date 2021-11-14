@@ -66,7 +66,7 @@ class Chess:
             self.en_passant_square,
             self.half_move_clock,
             self.move_number,
-        ) = fen.split()
+        ) = fen_portions(fen)
         self.next_colour = PLAYERS["wb".index(fen_next_colour)]
         self.fen_positions_to_bitboards(fen_positions)
 
