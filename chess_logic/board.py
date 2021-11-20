@@ -9,12 +9,14 @@ from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
 
 PIECES = "KQRBNPkqrbnp"
-PLAYERS = ["WHITE", "BLACK"]
+SIDES = ["WHITE", "BLACK"]
+OPPOSITE_SIDES = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
 ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
+Bitboard = int
 Coord = Sequence[int]
 
 
@@ -30,7 +32,12 @@ def fens_portion(fens: Iterable[str], portion_i: int) -> Iterable[str]:
 
 def get_piece_side(piece: str) -> str:
     """Returns side which piece belongs to based on case of piece symbol"""
-    return PLAYERS[piece.islower()]
+    return SIDES[piece.islower()]
+
+
+def get_bitboards_to_edit(piece: str) -> tuple:
+    """Returns tuple of bitboards requiring editing when moving piece"""
+    return piece, get_piece_side(piece), "GAME"
 
 
 def get_bitboard_index(square: Coord) -> int:
@@ -41,11 +48,6 @@ def get_bitboard_index(square: Coord) -> int:
     """
     row, column = square
     return (7 - row) * 8 + 7 - column
-
-
-def get_bitboards_to_edit(piece: str) -> tuple:
-    """Returns tuple of bitboards requiring editing when moving piece"""
-    return piece, get_piece_side(piece), "GAME"
 
 
 @dataclass
@@ -60,22 +62,26 @@ class BoardMetadata:
 
     def __post_init__(self) -> None:
         """Alters value of 'next_side' to conform with our labels for sides"""
-        self.next_side = PLAYERS["wb".index(self.next_side)]
+        self.next_side = SIDES["wb".index(self.next_side)]
 
     def __repr__(self) -> str:
         """Returns fen representation of metadata"""
         metadata = astuple(self)
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
+    def update(self):
+        """Updates board metadata after move"""
+        self.next_side = OPPOSITE_SIDES[self.next_side]
 
-class Chess:
+
+class ChessBoard:
     """
     Stores the state of a single chess board as collection of bitboards:
         - Initialises chess state (supports Forsyth–Edwards Notation)
         - Generates legal moves from positions
     """
 
-    def __init__(self, fen: str = STARTING_FEN) -> None:
+    def __init__(self, fen: str) -> None:
         """
         Initialises chess state from standard starting position or from optional
         Forsyth–Edwards Notation (FEN) argument
@@ -90,7 +96,7 @@ class Chess:
         key for each piece and game as a whole and values as bitboard for given piece
         """
         # Initialize 'self.boards' dictionary with empty board for each piece key
-        self.boards = dict.fromkeys(list(PIECES) + ["GAME"] + PLAYERS, 0)
+        self.boards = dict.fromkeys(list(PIECES) + ["GAME"] + SIDES, 0)
 
         # Calculate integer representing bitboard for each piece and whole game from FEN
         for row_i, row in enumerate(fen_positions.split("/")):
@@ -124,7 +130,7 @@ class Chess:
 
         return f"{'/'.join(rows)} {self.metadata}"
 
-    def get_bitboard(self, piece: str) -> int:
+    def get_bitboard(self, piece: str) -> Bitboard:
         """Returns integer representing bitboard of given piece"""
         return self.boards[piece]
 
@@ -163,20 +169,6 @@ class Chess:
         self.remove_bitboard_index(piece, old_index)
         self.add_bitboard_index(piece, new_index)
 
-    def legal_moves_from_square(self, piece: str, square: Coord) -> Iterable[Coord]:
-        """
-        Returns all legal moves in the current board state from specific square on board
-        (currently just temporary placeholders)
-        """
-        # pylint: disable=unused-argument, no-self-use
-        row, column = square
-        return (
-            (row + row_change, column + column_change)
-            for row_change in range(-bool(row), (row < 7) + 1)
-            for column_change in range(-bool(column), (column < 7) + 1)
-            if row_change or column_change
-        )
-
     def move(self, old_square: Coord, new_square: Coord) -> None:
         """Moves piece at given square to new square"""
         self.replace_piece_bitboard_index(
@@ -184,3 +176,4 @@ class Chess:
             get_bitboard_index(old_square),
             get_bitboard_index(new_square),
         )
+        self.metadata.update()

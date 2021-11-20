@@ -9,8 +9,8 @@ import pygame
 import pygame_widgets
 
 from chess_gui.gui import ChessGUI
-from core_chess.chess_logic import Coord, EMPTY_FEN, ROWS_AND_COLUMNS
-from core_chess.test_chess_logic import TEST_FENS
+from chess_logic.board import Coord, EMPTY_FEN, ROWS_AND_COLUMNS
+from chess_logic.test_core_chess import TEST_FENS
 
 TEST_DISPLAY_SIZES = list(product(range(500, 1500, 200), repeat=2))
 
@@ -177,6 +177,7 @@ class ChessGUITest(unittest.TestCase):
             ),
         )
 
+    @unittest.skip("No move generation currently implemented")
     def test_showing_moves(self) -> None:
         """Tests that moves are shown correctly when pieces are clicked"""
         with ChessGUI() as test_gui:

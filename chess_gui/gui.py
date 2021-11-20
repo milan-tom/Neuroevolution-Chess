@@ -14,8 +14,9 @@ import pygame
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from core_chess.chess_logic import Chess, Coord, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
-from core_chess.chess_logic import get_piece_side
+from chess_logic.board import Coord, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
+from chess_logic.board import get_piece_side
+from chess_logic.core_chess import Chess
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
@@ -166,12 +167,12 @@ class ChessGUI:
         # Loops through each row and column, drawing squares and pieces
         for square_coords in ROWS_AND_COLUMNS:
             # Draws piece at square if it exists
-            if piece := self.chess.get_piece_at_square(square_coords):
+            if self.chess.get_piece_at_square(square_coords):
                 self.draw_button_at_square(
                     square_coords,
                     self.design.get_square_colour(square_coords),
                     self.show_moves,
-                    (piece, square_coords),
+                    [square_coords],
                 )
         pygame.display.flip()
 
@@ -182,7 +183,7 @@ class ChessGUI:
         self.update()
         self.draw_pieces()
 
-    def show_moves(self, piece: str, old_square: Coord) -> None:
+    def show_moves(self, old_square: Coord) -> None:
         """Display move buttons for clicked piece (double clicking clears moves)"""
         if self.selected_square is not None:
             self.draw_board()
@@ -192,9 +193,7 @@ class ChessGUI:
         else:
             self.draw_pieces()
             self.selected_square = old_square
-            for new_square_coords in self.chess.legal_moves_from_square(
-                piece, old_square
-            ):
+            for new_square_coords in self.chess.legal_moves_from_square(old_square):
                 self.draw_button_at_square(
                     square=new_square_coords,
                     colour=self.move_button_colour,

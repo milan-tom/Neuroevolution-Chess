@@ -2,7 +2,8 @@
 
 import unittest
 
-from core_chess.chess_logic import Chess, EMPTY_FEN, fens_portion, STARTING_FEN
+from chess_logic.board import fens_portion, EMPTY_FEN, STARTING_FEN
+from chess_logic.core_chess import Chess
 
 RANDOM_FENS = (
     "1r6/2R1k1pp/3bp3/5p2/4n3/BP2P3/3N1PPP/6K1 b - - 3 24",
