@@ -171,6 +171,8 @@ class ChessBoard:
 
     def move(self, old_square: Coord, new_square: Coord) -> None:
         """Moves piece at given square to new square"""
+        if captured_piece := self.get_piece_at_square(new_square):
+            self.remove_bitboard_index(captured_piece, get_bitboard_index(new_square))
         self.replace_piece_bitboard_index(
             self.get_piece_at_square(old_square),
             get_bitboard_index(old_square),
