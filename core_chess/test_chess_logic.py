@@ -28,7 +28,7 @@ TEST_FENS = (STARTING_FEN, EMPTY_FEN) + RANDOM_FENS
 class ChessRulesTest(unittest.TestCase):
     """TestCase subclass for chess logic unit tests and relevant helper functions"""
 
-    def test_fen_to_chess_state_conversion(self):
+    def test_fen_to_chess_state_conversion(self) -> None:
         """
         Tests conversion of FENs to bitboards and other board state-specific parameters
         via allowing 'Chess' class to extract the chess state from fens and then
@@ -40,7 +40,7 @@ class ChessRulesTest(unittest.TestCase):
                 test_chess = Chess() if test_fen == STARTING_FEN else Chess(test_fen)
                 self.assertEqual(test_chess.fen, test_fen)
 
-    def test_moving_pieces(self):
+    def test_moving_pieces(self) -> None:
         """Tests basic piece movement where piece moves to empty square"""
         # Loops through test moves, performing them on the starting states from the
         # first few of the previously defined 'RANDOM_FENS'
