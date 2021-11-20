@@ -3,6 +3,7 @@ Handles all logic concerning initialising a chess state, generating moves from t
 state, and executing them on the state
 """
 
+from dataclasses import astuple, dataclass
 from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
@@ -47,6 +48,26 @@ def get_bitboards_to_edit(piece: str) -> tuple:
     return piece, get_piece_side(piece), "GAME"
 
 
+@dataclass
+class BoardMetadata:
+    """Dataclass storing metadata associated with a board state"""
+
+    next_side: str
+    castling: str
+    en_passant_square: str
+    half_move_clock: str
+    move_number: str
+
+    def __post_init__(self) -> None:
+        """Alters value of 'next_side' to conform with our labels for sides"""
+        self.next_side = PLAYERS["wb".index(self.next_side)]
+
+    def __repr__(self) -> str:
+        """Returns fen representation of metadata"""
+        metadata = astuple(self)
+        return " ".join((metadata[0][0].lower(),) + metadata[1:])
+
+
 class Chess:
     """
     Stores the state of a single chess board as collection of bitboards:
@@ -59,15 +80,8 @@ class Chess:
         Initialises chess state from standard starting position or from optional
         Forsyth–Edwards Notation (FEN) argument
         """
-        (
-            fen_positions,
-            fen_next_colour,
-            self.castling,
-            self.en_passant_square,
-            self.half_move_clock,
-            self.move_number,
-        ) = fen_portions(fen)
-        self.next_colour = PLAYERS["wb".index(fen_next_colour)]
+        fen_positions, *metadata = fen_portions(fen)
+        self.metadata = BoardMetadata(*metadata)
         self.fen_positions_to_bitboards(fen_positions)
 
     def fen_positions_to_bitboards(self, fen_positions: str) -> None:
@@ -108,16 +122,7 @@ class Chess:
                 row += str(empty_spaces)
             rows.append(row)
 
-        return " ".join(
-            (
-                "/".join(rows),
-                self.next_colour[0].lower(),
-                self.castling,
-                self.en_passant_square,
-                self.half_move_clock,
-                self.move_number,
-            )
-        )
+        return f"{'/'.join(rows)} {self.metadata}"
 
     def get_bitboard(self, piece: str) -> int:
         """Returns integer representing bitboard of given piece"""
