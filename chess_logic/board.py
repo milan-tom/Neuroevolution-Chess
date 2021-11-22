@@ -64,17 +64,18 @@ class BoardMetadata:
         """Alters value of 'next_side' to conform with our labels for sides"""
         self.next_side = SIDES["wb".index(self.next_side)]
 
-    def __repr__(self) -> str:
+    @property
+    def fen_metadata(self) -> str:
         """Returns fen representation of metadata"""
         metadata = astuple(self)
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
-    def update(self):
+    def update_metadata(self):
         """Updates board metadata after move"""
         self.next_side = OPPOSITE_SIDES[self.next_side]
 
 
-class ChessBoard:
+class ChessBoard(BoardMetadata):
     """
     Stores the state of a single chess board as collection of bitboards:
         - Initialises chess state (supports Forsyth–Edwards Notation)
@@ -87,7 +88,7 @@ class ChessBoard:
         Forsyth–Edwards Notation (FEN) argument
         """
         fen_positions, *metadata = fen_portions(fen)
-        self.metadata = BoardMetadata(*metadata)
+        super().__init__(*metadata)
         self.fen_positions_to_bitboards(fen_positions)
 
     def fen_positions_to_bitboards(self, fen_positions: str) -> None:
@@ -105,8 +106,7 @@ class ChessBoard:
                 if piece.isnumeric():
                     column_i += int(piece)
                 else:
-                    bitboard_index = get_bitboard_index((row_i, column_i))
-                    self.add_bitboard_index(piece, bitboard_index)
+                    self.add_bitboard_square(piece, (row_i, column_i))
                     column_i += 1
 
     @property
@@ -128,7 +128,7 @@ class ChessBoard:
                 row += str(empty_spaces)
             rows.append(row)
 
-        return f"{'/'.join(rows)} {self.metadata}"
+        return f"{'/'.join(rows)} {self.fen_metadata}"
 
     def get_bitboard(self, piece: str) -> Bitboard:
         """Returns integer representing bitboard of given piece"""
@@ -154,28 +154,17 @@ class ChessBoard:
         for bitboard in get_bitboards_to_edit(piece):
             self.boards[bitboard] = command(self.get_bitboard(bitboard), mask)
 
-    def add_bitboard_index(self, piece: str, index: int) -> None:
-        """Adds presence of piece to required bitboards (changes bit at index to 1)"""
-        self.edit_bitboard(piece, 1 << index, or_)
+    def add_bitboard_square(self, piece: str, square: Coord) -> None:
+        """Adds presence of piece to required bitboards (changes bit at square to 1)"""
+        self.edit_bitboard(piece, 1 << get_bitboard_index(square), or_)
 
-    def remove_bitboard_index(self, piece: str, index: int) -> None:
-        """Adds presence of piece to required bitboards (changes bit at index to 0)"""
-        self.edit_bitboard(piece, ~(1 << index), and_)
+    def remove_bitboard_square(self, piece: str, square: Coord) -> None:
+        """Adds presence of piece to required bitboards (changes bit at square to 0)"""
+        self.edit_bitboard(piece, ~(1 << get_bitboard_index(square)), and_)
 
-    def replace_piece_bitboard_index(
-        self, piece: str, old_index: int, new_index: int
+    def move_piece_bitboard_square(
+        self, piece: str, old_square: Coord, new_square: Coord
     ) -> None:
-        """Removes old piece and adds new piece to corresponding bitboards"""
-        self.remove_bitboard_index(piece, old_index)
-        self.add_bitboard_index(piece, new_index)
-
-    def move(self, old_square: Coord, new_square: Coord) -> None:
-        """Moves piece at given square to new square"""
-        if captured_piece := self.get_piece_at_square(new_square):
-            self.remove_bitboard_index(captured_piece, get_bitboard_index(new_square))
-        self.replace_piece_bitboard_index(
-            self.get_piece_at_square(old_square),
-            get_bitboard_index(old_square),
-            get_bitboard_index(new_square),
-        )
-        self.metadata.update()
+        """Changes square at which presence of piece shown in relevant bitboards"""
+        self.remove_bitboard_square(piece, old_square)
+        self.add_bitboard_square(piece, new_square)

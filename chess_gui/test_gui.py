@@ -177,7 +177,6 @@ class ChessGUITest(unittest.TestCase):
             ),
         )
 
-    @unittest.skip("No move generation currently implemented")
     def test_showing_moves(self) -> None:
         """Tests that moves are shown correctly when pieces are clicked"""
         with ChessGUI() as test_gui:
