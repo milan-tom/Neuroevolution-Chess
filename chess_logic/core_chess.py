@@ -30,7 +30,7 @@ class Chess(ChessBoard):
 
     def __init__(self, fen: str = STARTING_FEN) -> None:
         super().__init__(fen)
-        self.move_functions = (
+        move_functions = (
             self.king_moves,
             self.queen_moves,
             self.rook_moves,
@@ -38,6 +38,7 @@ class Chess(ChessBoard):
             self.knight_moves,
             self.pawn_moves,
         )
+        self.move_functions_and_pieces = list(zip(move_functions, STANDARD_PIECES))
         self.current_legal_moves = self.legal_moves()
 
     def bitboard_index_to_square(self, index: int) -> Coord:
@@ -63,7 +64,7 @@ class Chess(ChessBoard):
         )
         return [
             move
-            for func, piece in zip(self.move_functions, STANDARD_PIECES)
+            for func, piece in self.move_functions_and_pieces
             for move in func(self.move_boards[piece])
         ]
 
