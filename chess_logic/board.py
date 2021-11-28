@@ -8,16 +8,30 @@ from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
 
+Bitboard = int
+Coord = Sequence[int]
+
 PIECES = "KQRBNPkqrbnp"
 SIDES = ["WHITE", "BLACK"]
-OPPOSITE_SIDES = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
+OPPOSITE_SIDE = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
+PIECE_SIDE = {piece: SIDES[piece.islower()] for piece in PIECES}
+
 ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
+SQUARE_BITBOARD: dict[Coord, Bitboard] = {
+    square: 1 << (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
+}
+
+FEN_TO_BITBOARD_SQUARE = {
+    f"{file}{rank_i + 1}": SQUARE_BITBOARD[(rank_i, file_i)]
+    for file_i, file in enumerate(reversed("abcdefgh"))
+    for rank_i in range(8)
+} | {"-": 0}
+BITBOARD_TO_FEN_SQUARE = {
+    bitboard: fen_square for fen_square, bitboard in FEN_TO_BITBOARD_SQUARE.items()
+}
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
-
-Bitboard = int
-Coord = Sequence[int]
 
 
 def fen_portions(fen: str) -> list[str]:
@@ -30,24 +44,14 @@ def fens_portion(fens: Iterable[str], portion_i: int) -> Iterable[str]:
     return map(lambda fen: fen_portions(fen)[portion_i], fens)
 
 
-def get_piece_side(piece: str) -> str:
-    """Returns side which piece belongs to based on case of piece symbol"""
-    return SIDES[piece.islower()]
-
-
 def get_bitboards_to_edit(piece: str) -> tuple:
     """Returns tuple of bitboards requiring editing when moving piece"""
-    return piece, get_piece_side(piece), "GAME"
+    return piece, PIECE_SIDE[piece], "GAME"
 
 
-def get_bitboard_index(square: Coord) -> int:
-    """
-    Returns index in bitboard corresponding to square coordinate in chess board
-    :param square: Sequence of length 2 with row and column (0-based index
-    increasing from top to bottom and left to right)
-    """
-    row, column = square
-    return (7 - row) * 8 + 7 - column
+def rotate_bitboard(board: Bitboard) -> Bitboard:
+    """Reverses single bitboard bitwise"""
+    return int(bin(board)[2:].zfill(64)[::-1], 2)
 
 
 @dataclass
@@ -56,23 +60,30 @@ class BoardMetadata:
 
     next_side: str
     castling: str
-    en_passant_square: str
+    fen_en_passant_square: str
     half_move_clock: str
     move_number: str
 
     def __post_init__(self) -> None:
         """Alters value of 'next_side' to conform with our labels for sides"""
         self.next_side = SIDES["wb".index(self.next_side)]
+        self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
 
     @property
     def fen_metadata(self) -> str:
         """Returns fen representation of metadata"""
+        self.fen_en_passant_square = BITBOARD_TO_FEN_SQUARE[
+            rotate_bitboard(self.en_passant_bitboard)
+            if self.next_side == "WHITE"
+            else self.en_passant_bitboard
+        ]
         metadata = astuple(self)
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
-    def update_metadata(self):
+    def update_metadata(self, en_passant_bitboard: Bitboard):
         """Updates board metadata after move"""
-        self.next_side = OPPOSITE_SIDES[self.next_side]
+        self.next_side = OPPOSITE_SIDE[self.next_side]
+        self.en_passant_bitboard = en_passant_bitboard
 
 
 class ChessBoard(BoardMetadata):
@@ -136,7 +147,7 @@ class ChessBoard(BoardMetadata):
 
     def piece_exists_at_square(self, square: Coord, piece: str) -> bool:
         """Checks whether piece exists at square for given board"""
-        return bool(self.get_bitboard(piece) & (1 << get_bitboard_index(square)))
+        return bool(self.get_bitboard(piece) & SQUARE_BITBOARD[square])
 
     def get_piece_at_square(self, square: Coord) -> Optional[str]:
         """Returns piece at square on chess board if there is one and 'None' if not"""
@@ -155,12 +166,12 @@ class ChessBoard(BoardMetadata):
             self.boards[bitboard] = command(self.get_bitboard(bitboard), mask)
 
     def add_bitboard_square(self, piece: str, square: Coord) -> None:
-        """Adds presence of piece to required bitboards (changes bit at square to 1)"""
-        self.edit_bitboard(piece, 1 << get_bitboard_index(square), or_)
+        """Adds piece presence to required bitboards (changes square bit to 1)"""
+        self.edit_bitboard(piece, SQUARE_BITBOARD[square], or_)
 
     def remove_bitboard_square(self, piece: str, square: Coord) -> None:
-        """Adds presence of piece to required bitboards (changes bit at square to 0)"""
-        self.edit_bitboard(piece, ~(1 << get_bitboard_index(square)), and_)
+        """Removes piece presence from required bitboards (changes square bit to 0)"""
+        self.edit_bitboard(piece, ~SQUARE_BITBOARD[square], and_)
 
     def move_piece_bitboard_square(
         self, piece: str, old_square: Coord, new_square: Coord

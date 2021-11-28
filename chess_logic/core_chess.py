@@ -1,14 +1,24 @@
 """Handles move generation for individual pieces"""
 
-from typing import Iterable
+from typing import Any, Iterable, Optional, Union
 
-from chess_logic.board import Bitboard, Coord, OPPOSITE_SIDES, PIECES, STARTING_FEN
-from chess_logic.board import ChessBoard, get_piece_side
+from chess_logic.board import (
+    Bitboard,
+    ChessBoard,
+    Coord,
+    OPPOSITE_SIDE,
+    PIECE_SIDE,
+    PIECES,
+    rotate_bitboard,
+    STARTING_FEN,
+)
 
 STANDARD_PIECES = PIECES[:6]
 
 Bitboards = dict[str, Bitboard]
-Moves = Iterable[tuple[Coord, Coord]]
+Context = tuple[str, Any]
+Move = Union[tuple[Coord, Coord], tuple[Coord, Coord, Context]]
+Moves = Iterable[Move]
 
 RANK0 = 2 ** 8 - 1
 RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
@@ -16,12 +26,7 @@ FILE0 = sum(2 ** i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
 UNSIGN_MASK = 2 ** 64 - 1
-PAWN_MASK_SHIFTS = 8, 16, 9, 7
-
-
-def rotate_bitboard(board: Bitboard) -> Bitboard:
-    """Reverses single bitboard bitwise"""
-    return int(bin(board)[2:].zfill(64)[::-1], 2)
+PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
 
 
 class Chess(ChessBoard):
@@ -43,16 +48,29 @@ class Chess(ChessBoard):
         self.move_functions_and_pieces = list(zip(move_functions, STANDARD_PIECES))
         self.current_legal_moves = self.legal_moves()
 
-    def move(self, old_square: Coord, new_square: Coord) -> None:
+    def move(
+        self,
+        old_square: Coord,
+        new_square: Coord,
+        context: Optional[Context] = None,
+    ) -> None:
         """Moves piece at given square to new square"""
-        if captured_piece := self.get_piece_at_square(new_square):
+        en_passant_bitboard = 0
+        if context is not None:
+            if context[0] == "EN PASSANT":
+                pawn_symbol = "P" if self.next_side == "WHITE" else "p"
+                self.remove_bitboard_square(pawn_symbol, context[1])
+            elif context[0] == "DOUBLE PUSH":
+                en_passant_bitboard = context[1]
+        elif captured_piece := self.get_piece_at_square(new_square):
             self.remove_bitboard_square(captured_piece, new_square)
+
         self.move_piece_bitboard_square(
             self.get_piece_at_square(old_square),
             old_square,
             new_square,
         )
-        self.update_metadata()
+        self.update_metadata(en_passant_bitboard)
         self.current_legal_moves = self.legal_moves()
 
     def bitboard_index_to_square(self, index: int) -> Coord:
@@ -68,25 +86,22 @@ class Chess(ChessBoard):
             {
                 piece.upper(): bitboard
                 for piece, bitboard in self.boards.items()
-                if len(piece) != 1 or get_piece_side(piece) == self.next_side
+                if len(piece) != 1 or PIECE_SIDE[piece] == self.next_side
             }
         )
         self.move_boards["~GAME"] = ~self.move_boards["GAME"]
-        self.move_boards["OPPOSITE"] = self.move_boards[OPPOSITE_SIDES[self.next_side]]
+        self.move_boards["OPPOSITE"] = self.move_boards[OPPOSITE_SIDE[self.next_side]]
 
+        # Collates all moves, adding None value for context if not provided
         return [
             move
             for func, piece in self.move_functions_and_pieces
             for move in func(self.move_boards[piece])
         ]
 
-    def legal_moves_from_square(self, square: Coord) -> Iterable[Coord]:
+    def legal_moves_from_square(self, square: Coord) -> Moves:
         """Returns all legal moves from specific square on board"""
-        return [
-            new_square
-            for old_square, new_square in self.current_legal_moves
-            if old_square == square
-        ]
+        return [move for move in self.current_legal_moves if move[0] == square]
 
     def oriented_bitboards(self, bitboards: Bitboards) -> Bitboards:
         """
@@ -127,18 +142,34 @@ class Chess(ChessBoard):
 
     def pawn_moves(self, piece_bitboard: Bitboard) -> Moves:
         """Yields all pseudo-legal moves for pawn piece"""
+        # Generates possible push move bitboards for all pawns at once
         single_push = piece_bitboard << 8 & self.move_boards["~GAME"]
         double_push = (single_push & RANKS[2]) << 8 & self.move_boards["~GAME"]
-        capture = (
-            (piece_bitboard & ~FILES[7]) << 9 | (piece_bitboard & ~FILES[0]) << 7
-        ) & self.move_boards["OPPOSITE"]
+
         for i in range(piece_bitboard.bit_length()):
             piece_mask = 1 << i
+            # Generates moves if pawn exists at bitboard index
             if piece_mask & piece_bitboard:
                 old_square = self.bitboard_index_to_square(i)
-                for shift, move_bitboard in zip(
-                    PAWN_MASK_SHIFTS,
-                    (single_push, double_push, capture, capture),
-                ):
-                    if piece_mask << shift & move_bitboard:
-                        yield old_square, self.bitboard_index_to_square(i + shift)
+
+                # Generates all forward push moves
+                if piece_mask << 8 & single_push:
+                    yield old_square, self.bitboard_index_to_square(i + 8)
+                    if piece_mask << 16 & double_push:
+                        yield old_square, self.bitboard_index_to_square(i + 16), (
+                            "DOUBLE PUSH",
+                            rotate_bitboard(piece_mask << 8),
+                        )
+
+                # Generates all pawn captures
+                for shift, move_mask in PAWN_CAPTURE_SHIFTS_AND_MASKS.items():
+                    if piece_mask & move_mask:
+                        shifted_piece = piece_mask << shift
+                        new_square = self.bitboard_index_to_square(i + shift)
+                        if shifted_piece & self.move_boards["OPPOSITE"]:
+                            yield old_square, new_square
+                        elif shifted_piece & self.en_passant_bitboard:
+                            yield old_square, new_square, (
+                                "EN PASSANT",
+                                self.bitboard_index_to_square(i + shift - 8),
+                            )

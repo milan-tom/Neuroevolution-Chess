@@ -14,9 +14,8 @@ import pygame
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from chess_logic.board import Coord, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
-from chess_logic.board import get_piece_side
-from chess_logic.core_chess import Chess
+from chess_logic.board import Coord, PIECE_SIDE, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
+from chess_logic.core_chess import Chess, Move
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
@@ -27,7 +26,7 @@ image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
 PIECE_IMAGES = {
     piece: (
         piece_image := pygame.image.load(
-            image_path.format(get_piece_side(piece), piece.upper())
+            image_path.format(PIECE_SIDE[piece], piece.upper())
         )
     ).subsurface(piece_image.get_bounding_rect())
     for piece in PIECES
@@ -59,7 +58,7 @@ class Design(pygame.Surface):
 
     def square_to_pixel(self, square: Coord) -> Coord:
         """Returns (scaled) pixel coordinate equivalent of square coordinate"""
-        return list(map(self.dimension_to_pixel, square[::-1]))
+        return tuple(map(self.dimension_to_pixel, square[::-1]))
 
     def get_square_rect(self, square: Coord) -> pygame.Rect:
         """Returns pygame 'Rect' object for specified row and column"""
@@ -172,7 +171,7 @@ class ChessGUI:
                     square_coords,
                     self.design.get_square_colour(square_coords),
                     self.show_moves,
-                    [square_coords],
+                    (square_coords,),
                 )
         pygame.display.flip()
 
@@ -193,17 +192,17 @@ class ChessGUI:
         else:
             self.draw_pieces()
             self.selected_square = old_square
-            for new_square_coords in self.chess.legal_moves_from_square(old_square):
+            for move in self.chess.legal_moves_from_square(old_square):
                 self.draw_button_at_square(
-                    square=new_square_coords,
+                    square=move[1],
                     colour=self.move_button_colour,
                     command_function=self.move_piece,
-                    parameters=(old_square, new_square_coords),
+                    parameters=(move,),
                 )
 
-    def move_piece(self, old_square: Coord, new_square: Coord) -> None:
+    def move_piece(self, move: Move) -> None:
         """Moves piece from one square to another and updates GUI accordingly"""
-        self.chess.move(old_square, new_square)
+        self.chess.move(*move)
         self.draw_board()
 
     def __enter__(self) -> ChessGUI:
