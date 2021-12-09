@@ -8,7 +8,7 @@ from functools import partial
 from itertools import cycle, product
 from time import process_time
 from types import TracebackType
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional
 import os
 
 import pygame
@@ -236,7 +236,7 @@ class ChessGUI:
         """Enables use of GUI in 'with' statement"""
         return self
 
-    def mainloop(self, time_limit: Union[int, float] = float("inf")) -> None:
+    def mainloop(self, time_limit: int | float = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
         start_time = process_time()

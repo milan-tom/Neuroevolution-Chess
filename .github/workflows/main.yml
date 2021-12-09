@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: [3.10]
 
     steps:
       - uses: actions/checkout@v2

@@ -62,26 +62,26 @@ class Chess(ChessBoard):
         """Moves piece at given square to new square"""
         if captured_piece := self.get_piece_at_square(move.new_square):
             self.remove_bitboard_square(captured_piece, move.new_square)
+        self.move_piece_bitboard_square(
+            self.get_piece_at_square(move.old_square),
+            move.old_square,
+            move.new_square,
+        )
 
         en_passant_bitboard = 0
-        if move.context_flag == "PROMOTION":
-            self.remove_bitboard_square(
-                PIECE_OF_SIDE[(self.next_side, "P")], move.old_square
-            )
-            self.add_bitboard_square(move.context_data, move.new_square)
-        else:
-            if move.context_flag == "EN PASSANT":
+        match move.context_flag:
+            case "PROMOTION":
+                self.remove_bitboard_square(
+                    PIECE_OF_SIDE[(self.next_side, "P")], move.new_square
+                )
+                self.add_bitboard_square(move.context_data, move.new_square)
+            case "EN PASSANT":
                 self.remove_bitboard_square(
                     PIECE_OF_SIDE[(OPPOSITE_SIDE[self.next_side], "P")],
                     move.context_data,
                 )
-            elif move.context_flag == "DOUBLE PUSH":
+            case "DOUBLE PUSH":
                 en_passant_bitboard = move.context_data
-            self.move_piece_bitboard_square(
-                self.get_piece_at_square(move.old_square),
-                move.old_square,
-                move.new_square,
-            )
 
         self.update_metadata(en_passant_bitboard)
         self.current_legal_moves = self.legal_moves()
