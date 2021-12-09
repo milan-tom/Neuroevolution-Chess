@@ -3,10 +3,15 @@
 import unittest
 
 from chess_logic.board import fens_portion, STARTING_FEN
-from chess_logic.core_chess import Chess
+from chess_logic.core_chess import Chess, Move
 from tests import RANDOM_FENS, TEST_FENS
 
-RANDOM_MOVES = ((1, 4), (0, 5)), ((5, 1), (3, 1)), ((5, 6), (2, 3)), ((1, 7), (2, 7))
+RANDOM_MOVES = (
+    Move((1, 4), (0, 5)),
+    Move((5, 1), (3, 1)),
+    Move((5, 6), (2, 3)),
+    Move((1, 7), (2, 7)),
+)
 MOVED_FENS = (
     "1r3k2/2R3pp/3bp3/5p2/4n3/BP2P3/3N1PPP/6K1 w - - 4 25",
     "r4rk1/pp2qppp/4n3/1Q6/8/8/PP3PPP/R1B1R1K1 b - - 0 18",
@@ -37,7 +42,7 @@ class ChessBoardTest(unittest.TestCase):
         for original_fen, move, new_fen in zip(RANDOM_FENS, RANDOM_MOVES, MOVED_FENS):
             with self.subTest(original_fen=original_fen, move=move, new_fen=new_fen):
                 test_chess = Chess(original_fen)
-                test_chess.move(*move)
+                test_chess.move_piece(move)
                 # Verifies correctness of positions and next side portions of actual FEN
                 for portion in range(1):
                     self.assertEqual(*fens_portion((test_chess.fen, new_fen), portion))

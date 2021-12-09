@@ -36,7 +36,7 @@ def find_move_buttons(test_gui: ChessGUI) -> Iterable[Coord]:
             test_gui.display.get_at(
                 test_gui.scale_coords(test_gui.design.square_to_pixel(square_coords))
             )
-            == test_gui.move_button_colour
+            == test_gui.default_button_colour
         ):
             yield square_coords
 

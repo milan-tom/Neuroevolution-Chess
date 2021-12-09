@@ -4,6 +4,7 @@ state
 """
 
 from __future__ import annotations
+from functools import partial
 from itertools import cycle, product
 from time import process_time
 from types import TracebackType
@@ -11,6 +12,7 @@ from typing import Callable, Iterable, Optional, Union
 import os
 
 import pygame
+import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
@@ -32,6 +34,10 @@ PIECE_IMAGES = {
     for piece in PIECES
 }
 
+# Initialises pygame components and sets certain GUI parameters
+pygame.init()
+GAME_FONT = "Verdana"
+
 
 class Design(pygame.Surface):
     """Represents the design surface used by the GUI"""
@@ -45,12 +51,6 @@ class Design(pygame.Surface):
         self.square_size = 108  # Size of square in pixels to fill dummy window's height
         # Stores colour codes for light and dark squares, respectively
         self.board_colours = (240, 217, 181), (187, 129, 65)
-
-    def clear(self) -> None:
-        """Clears display (fills with black)"""
-        self.fill("black")
-        # pylint: disable=W0212
-        pygame_widgets.widget.WidgetHandler._widgets = []
 
     def dimension_to_pixel(self, dimension: int) -> int:
         """Scales row/column to pixel coordinate"""
@@ -93,15 +93,14 @@ class ChessGUI:
     """
 
     def __init__(self, display_size: Coord = (0, 0), fen=STARTING_FEN) -> None:
-        """Initialises chess board state, pygame components, and draws board"""
-        pygame.init()
+        """Initialises chess board state and GUI components, and draws board"""
         pygame.display.set_caption("Chess GUI")
 
         self.design = Design()
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square: Optional[Coord] = None
         self.running = True
-        self.move_button_colour = (0, 255, 0)
+        self.default_button_colour = (0, 255, 0)
 
         # Initialises chess object to manage chess rules for GUI
         self.chess = Chess(fen)
@@ -146,38 +145,47 @@ class ChessGUI:
     def draw_button_at_square(
         self,
         square: Coord,
-        colour: tuple[int, int, int],
-        command_function: Callable,
-        parameters: Union[tuple, list],
+        func: Callable,
+        colour: tuple[int, int, int] = None,
+        image: Optional[pygame.Surface] = None,
     ) -> None:
         """Draws button at given square"""
-        button = Button(
+        if colour is None:
+            colour = self.default_button_colour
+        if image is None:
+            image = self.piece_images.get(self.chess.get_piece_at_square(square))
+        Button(
             self.display,
             *self.scale_coords(self.design.get_square_rect(square)),
             inactiveColour=colour,
-            image=self.piece_images.get(self.chess.get_piece_at_square(square)),
-            onRelease=command_function,
-            onReleaseParams=parameters,
+            image=image,
+            onRelease=func,
+        ).draw()
+
+    def show_text(self, text: str, size: int, location: Coord) -> None:
+        """Displays text of the prconfigured font at the given location"""
+        pygame.freetype.SysFont(GAME_FONT, size).render_to(
+            self.design, location, text, "white"
         )
-        button.draw()
+        self.update()
 
     def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
         # Loops through each row and column, drawing squares and pieces
-        for square_coords in ROWS_AND_COLUMNS:
+        for square in ROWS_AND_COLUMNS:
             # Draws piece at square if it exists
-            if self.chess.get_piece_at_square(square_coords):
+            if self.chess.get_piece_at_square(square):
                 self.draw_button_at_square(
-                    square_coords,
-                    self.design.get_square_colour(square_coords),
-                    self.show_moves,
-                    (square_coords,),
+                    square=square,
+                    func=partial(self.show_moves, square),
+                    colour=self.design.get_square_colour(square),
                 )
         pygame.display.flip()
 
     def draw_board(self) -> None:
         """Displays the current state of the board"""
-        self.design.clear()
+        self.design.fill("black")
+        pygame_widgets.WidgetHandler.getWidgets().clear()
         self.design.draw_board_squares()
         self.update()
         self.draw_pieces()
@@ -192,17 +200,36 @@ class ChessGUI:
         else:
             self.draw_pieces()
             self.selected_square = old_square
-            for move in self.chess.legal_moves_from_square(old_square):
-                self.draw_button_at_square(
-                    square=move[1],
-                    colour=self.move_button_colour,
-                    command_function=self.move_piece,
-                    parameters=(move,),
-                )
+
+            legal_moves = self.chess.legal_moves_from_square(old_square)
+            if legal_moves and legal_moves[0].context_flag == "PROMOTION":
+                for promotion_set_i in range(0, len(legal_moves), 4):
+                    promotion_moves = legal_moves[promotion_set_i : promotion_set_i + 4]
+                    self.draw_button_at_square(
+                        square=promotion_moves[0].new_square,
+                        func=partial(self.show_promotion_moves, promotion_moves),
+                    )
+            else:
+                for move in legal_moves:
+                    self.draw_button_at_square(
+                        square=move.new_square, func=partial(self.move_piece, move)
+                    )
+
+    def show_promotion_moves(self, promotion_moves: list[Move]):
+        """Displays all choices for promoting pawn"""
+        for widget in pygame_widgets.WidgetHandler.getWidgets():
+            widget.setOnRelease(lambda *args: None)
+        self.show_text("Choose the promotion piece:", 30, (970, 50))
+        for move_i, move in enumerate(promotion_moves):
+            self.draw_button_at_square(
+                square=(1, 9 + move_i),
+                func=partial(self.move_piece, move),
+                image=self.piece_images[move.context_data],
+            )
 
     def move_piece(self, move: Move) -> None:
         """Moves piece from one square to another and updates GUI accordingly"""
-        self.chess.move(*move)
+        self.chess.move_piece(move)
         self.draw_board()
 
     def __enter__(self) -> ChessGUI:
