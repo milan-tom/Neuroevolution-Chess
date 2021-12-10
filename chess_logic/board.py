@@ -33,6 +33,8 @@ BITBOARD_TO_FEN_SQUARE = {
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
+UNSIGN_MASK = (1 << 64) - 1
+
 
 def fen_portions(fen: str) -> list[str]:
     """Splits FEN into space-separated components"""
@@ -49,9 +51,18 @@ def get_bitboards_to_edit(piece: str) -> tuple:
     return piece, PIECE_SIDE[piece], "GAME"
 
 
+def unsign_bitboard(board: Bitboard) -> Bitboard:
+    """
+    Converts bitboard to unsigned 64-bit bitboard (negative values could arise from
+    two's complement when bitwise NOT used on bitboard as Python has no length limit for
+    integers)
+    """
+    return board & UNSIGN_MASK
+
+
 def rotate_bitboard(board: Bitboard) -> Bitboard:
     """Reverses single bitboard bitwise"""
-    return int(bin(board)[2:].zfill(64)[::-1], 2)
+    return int(bin(unsign_bitboard(board)).lstrip("0b").zfill(64)[::-1], 2)
 
 
 @dataclass

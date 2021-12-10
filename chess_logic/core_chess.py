@@ -25,8 +25,23 @@ RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
 FILE0 = sum(2 ** i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
-UNSIGN_MASK = 2 ** 64 - 1
+KNIGHT_FORWARD_MASKS = {
+    1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
+    1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
+    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[0]),
+    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[7]),
+}
+KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
+    -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
+}
 PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
+
+
+def signed_shift(board: Bitboard, shift: int) -> Bitboard:
+    """Performs binary shift considering sign (left/right shift for +ve/-ve shift)"""
+    if shift < 0:
+        return board >> -shift
+    return board << shift
 
 
 class Move(NamedTuple):
@@ -103,6 +118,7 @@ class Chess(ChessBoard):
             }
         )
         self.move_boards["~GAME"] = ~self.move_boards["GAME"]
+        self.move_boards["~SAME"] = ~self.move_boards[self.next_side]
         self.move_boards["OPPOSITE"] = self.move_boards[OPPOSITE_SIDE[self.next_side]]
 
         # Collates list of all moves in current position
@@ -149,9 +165,17 @@ class Chess(ChessBoard):
         return iter(())
 
     def knight_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
-        """Yields all pseudo-legal moves for knight piece (currently not implemented)"""
-        # pylint: disable=no-self-use, unused-argument
-        return iter(())
+        """Yields all pseudo-legal moves for knight piece"""
+        for i in range(piece_bitboard.bit_length()):
+            piece_mask = 1 << i
+            if piece_mask & piece_bitboard:
+                old_square = self.bitboard_index_to_square(i)
+                for shift, mask in KNIGHT_MASKS.items():
+                    if (
+                        signed_shift(piece_mask & mask, shift)
+                        & self.move_boards["~SAME"]
+                    ):
+                        yield Move(old_square, self.bitboard_index_to_square(i + shift))
 
     def pawn_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
         """Yields all pseudo-legal moves for pawn piece"""
