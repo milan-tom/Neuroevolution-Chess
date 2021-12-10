@@ -25,6 +25,16 @@ RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
 FILE0 = sum(2 ** i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
+KING_MASKS = {
+    +8 + 1: ~(RANKS[7] | FILES[7]),
+    +8 + 0: ~RANKS[7],
+    +8 - 1: ~(RANKS[7] | FILES[0]),
+    +0 + 1: ~FILES[7],
+    +0 - 1: ~FILES[0],
+    -8 + 1: ~(RANKS[0] | FILES[7]),
+    -8 + 0: ~RANKS[0],
+    -8 - 1: ~(RANKS[0] | FILES[0]),
+}
 KNIGHT_FORWARD_MASKS = {
     1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
     1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
@@ -145,9 +155,12 @@ class Chess(ChessBoard):
         return bitboards
 
     def king_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
-        """Yields all pseudo-legal moves for king piece (currently not implemented)"""
-        # pylint: disable=no-self-use, unused-argument
-        return iter(())
+        """Yields all pseudo-legal moves for king piece"""
+        i = piece_bitboard.bit_length() - 1
+        old_square = self.bitboard_index_to_square(i)
+        for shift, mask in KING_MASKS.items():
+            if signed_shift(piece_bitboard & mask, shift) & self.move_boards["~SAME"]:
+                yield Move(old_square, self.bitboard_index_to_square(i + shift))
 
     def queen_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
         """Yields all pseudo-legal moves for queen piece (currently not implemented)"""
