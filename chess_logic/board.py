@@ -20,15 +20,14 @@ ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
 SQUARE_BITBOARD: dict[Coord, Bitboard] = {
     square: 1 << (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
 }
+BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
 
 FEN_TO_BITBOARD_SQUARE = {
     f"{file}{rank_i + 1}": SQUARE_BITBOARD[(rank_i, file_i)]
     for file_i, file in enumerate(reversed("abcdefgh"))
     for rank_i in range(8)
 } | {"-": 0}
-BITBOARD_TO_FEN_SQUARE = {
-    bitboard: fen_square for fen_square, bitboard in FEN_TO_BITBOARD_SQUARE.items()
-}
+BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"

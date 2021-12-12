@@ -1,15 +1,20 @@
 """Handles move generation for individual pieces"""
 
+from enum import auto, Enum
+from operator import itemgetter
 from typing import Any, Iterator, NamedTuple, Optional
 
 from chess_logic.board import (
     Bitboard,
+    BITBOARD_SQUARE,
     ChessBoard,
     Coord,
     OPPOSITE_SIDE,
     PIECE_SIDE,
     PIECES,
     rotate_bitboard,
+    ROWS_AND_COLUMNS,
+    SQUARE_BITBOARD,
     STARTING_FEN,
 )
 
@@ -52,6 +57,81 @@ def signed_shift(board: Bitboard, shift: int) -> Bitboard:
     if shift < 0:
         return board >> -shift
     return board << shift
+
+
+class Slider(Enum):
+    """Stores slider flags as enums"""
+
+    ROOK = auto()
+    BISHOP = auto()
+
+
+ROOK_SHIFTS = {shift: itemgetter(i) for i, shift in enumerate((8, 1))}
+ROOK_SHIFTS |= {
+    -shift: lambda square, i=i: 7 - square[i] for i, shift in enumerate(ROOK_SHIFTS)
+}
+BISHOP_SHIFTS = {
+    shift: lambda square, i=i: min(7 - x if i & j else x for j, x in enumerate(square))
+    for i, shift in enumerate((9, 7, -7, -9))
+}
+SLIDER_SHIFTS = dict(zip(Slider, (ROOK_SHIFTS, BISHOP_SHIFTS)))
+
+
+def blocker_configs(blocker_mask: Bitboard) -> Iterator[Bitboard]:
+    """Yields all possible blocker configurations for the given blocker mask"""
+    for blocker_config_i in range(1 << blocker_mask.bit_count()):
+        # Removes blockers in certain positions according to blocker configuration index
+        blocker_config = blocker_mask
+        for i in range(blocker_mask.bit_length()):
+            blocker = 1 << i
+            if blocker & blocker_mask:
+                if 1 & blocker_config_i:
+                    blocker_config &= ~blocker
+                blocker_config_i >>= 1
+
+        yield blocker_config
+
+
+def slider_move_board(
+    square: Coord, slider: Slider, mask_edges: bool = False, blockers: Bitboard = 0
+) -> Bitboard:
+    """Returns move board given current square, blockers present, and possible shifts"""
+    piece_mask = SQUARE_BITBOARD[square]
+    moves = 0
+    for shift, max_move_func in SLIDER_SHIFTS[slider].items():
+        max_move = max_move_func(square)
+        # Prevents slider from reaching board border if required
+        if mask_edges:
+            max_move -= 1
+
+        # Adds all moves in current direction to overall move bitboard until blocked
+        move_mask = piece_mask
+        for _ in range(max_move):
+            move_mask = signed_shift(move_mask, shift)
+            moves |= move_mask
+            if move_mask & blockers:
+                break
+    return moves
+
+
+SLIDER_ATTACKS = {
+    slider: {
+        square: slider_move_board(square, slider, mask_edges=True)
+        for square in ROWS_AND_COLUMNS
+    }
+    for slider in Slider
+}
+
+SLIDER_MOVES = {
+    slider: {
+        square: {
+            blocker_config: slider_move_board(square, slider, blockers=blocker_config)
+            for blocker_config in blocker_configs(SLIDER_ATTACKS[slider][square])
+        }
+        for square in ROWS_AND_COLUMNS
+    }
+    for slider in Slider
+}
 
 
 class Move(NamedTuple):
@@ -162,20 +242,36 @@ class Chess(ChessBoard):
             if signed_shift(piece_bitboard & mask, shift) & self.move_boards["~SAME"]:
                 yield Move(old_square, self.bitboard_index_to_square(i + shift))
 
+    def slider_moves(self, slider, piece_bitboard: Bitboard) -> Iterator[Move]:
+        """Yields all pseudo-legal moves for given slider"""
+        for i in range(piece_bitboard.bit_length()):
+            piece_mask = 1 << i
+            if piece_mask & piece_bitboard:
+                old_square = self.bitboard_index_to_square(i)
+                blockers = (
+                    self.move_boards["GAME"]
+                    & SLIDER_ATTACKS[slider][BITBOARD_SQUARE[piece_mask]]
+                )
+                moves_board = (
+                    SLIDER_MOVES[slider][BITBOARD_SQUARE[piece_mask]][blockers]
+                    & self.move_boards["~SAME"]
+                )
+                for j in range(moves_board.bit_length()):
+                    if 1 << j & moves_board:
+                        yield Move(old_square, self.bitboard_index_to_square(j))
+
     def queen_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
-        """Yields all pseudo-legal moves for queen piece (currently not implemented)"""
-        # pylint: disable=no-self-use, unused-argument
-        return iter(())
+        """Yields all pseudo-legal moves for queen piece"""
+        yield from self.rook_moves(piece_bitboard)
+        yield from self.bishop_moves(piece_bitboard)
 
     def rook_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
-        """Yields all pseudo-legal moves for rook piece (currently not implemented)"""
-        # pylint: disable=no-self-use, unused-argument
-        return iter(())
+        """Yields all pseudo-legal moves for rook piece"""
+        yield from self.slider_moves(Slider.ROOK, piece_bitboard)
 
     def bishop_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
-        """Yields all pseudo-legal moves for bishop piece (currently not implemented)"""
-        # pylint: disable=no-self-use, unused-argument
-        return iter(())
+        """Yields all pseudo-legal moves for bishop piece"""
+        yield from self.slider_moves(Slider.BISHOP, piece_bitboard)
 
     def knight_moves(self, piece_bitboard: Bitboard) -> Iterator[Move]:
         """Yields all pseudo-legal moves for knight piece"""
