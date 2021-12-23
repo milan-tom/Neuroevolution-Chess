@@ -4,7 +4,7 @@ state, and executing them on the state
 """
 
 from dataclasses import astuple, dataclass
-from itertools import product
+from itertools import combinations, product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
 
@@ -15,12 +15,16 @@ PIECES = "KQRBNPkqrbnp"
 SIDES = ["WHITE", "BLACK"]
 OPPOSITE_SIDE = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
 PIECE_SIDE = {piece: SIDES[piece.islower()] for piece in PIECES}
+PIECE_OF_SIDE = {(side, piece.upper()): piece for piece, side in PIECE_SIDE.items()}
 
 ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
 SQUARE_BITBOARD: dict[Coord, Bitboard] = {
     square: 1 << (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
 }
 BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
+
+STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
 FEN_TO_BITBOARD_SQUARE = {
     f"{file}{rank_i + 1}": SQUARE_BITBOARD[(rank_i, file_i)]
@@ -29,8 +33,25 @@ FEN_TO_BITBOARD_SQUARE = {
 } | {"-": 0}
 BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
 
-STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
+CASTLING_SYMBOLS = "KQkq"
+FEN_CASTLING_TO_RIGHTS = {
+    "".join(fen_castling): {
+        side: [symbol for symbol in fen_castling if PIECE_SIDE[symbol] == side]
+        for side in SIDES
+    }
+    for symbols_length in range(1, len(CASTLING_SYMBOLS) + 1)
+    for fen_castling in combinations(CASTLING_SYMBOLS, symbols_length)
+}
+FEN_CASTLING_TO_RIGHTS["-"] = {side: [] for side in SIDES}
+
+CASTLING_ROOK_MOVES = dict(zip(CASTLING_SYMBOLS, (((7, 7), (7, 5)), ((7, 0), (7, 3)))))
+CASTLING_ROOK_MOVES |= {
+    symbol.lower(): tuple(map(lambda square: (square[0] - 7, square[1]), squares))
+    for symbol, squares in CASTLING_ROOK_MOVES.items()
+}
+ROOK_SQUARES_VOIDING_CASTLING = {
+    squares[0]: castling for castling, squares in CASTLING_ROOK_MOVES.items()
+}
 
 UNSIGN_MASK = (1 << 64) - 1
 
@@ -69,7 +90,7 @@ class BoardMetadata:
     """Dataclass storing metadata associated with a board state"""
 
     next_side: str
-    castling: str
+    fen_castling: str
     fen_en_passant_square: str
     half_move_clock: str
     move_number: str
@@ -77,11 +98,15 @@ class BoardMetadata:
     def __post_init__(self) -> None:
         """Alters value of 'next_side' to conform with our labels for sides"""
         self.next_side = SIDES["wb".index(self.next_side)]
+        self.side_castling_rights = FEN_CASTLING_TO_RIGHTS[self.fen_castling]
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
 
     @property
     def fen_metadata(self) -> str:
         """Returns fen representation of metadata"""
+        self.fen_castling = list(FEN_CASTLING_TO_RIGHTS.keys())[
+            list(FEN_CASTLING_TO_RIGHTS.values()).index(self.side_castling_rights)
+        ]
         self.fen_en_passant_square = BITBOARD_TO_FEN_SQUARE[
             rotate_bitboard(self.en_passant_bitboard)
             if self.next_side == "WHITE"
@@ -90,8 +115,24 @@ class BoardMetadata:
         metadata = astuple(self)
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
-    def update_metadata(self, en_passant_bitboard: Bitboard):
+    def update_metadata(
+        self, en_passant_bitboard: Bitboard, moved_piece: str, old_square: Coord
+    ) -> None:
         """Updates board metadata after move"""
+        # Updates castling rights
+        if current_castling_rights := self.side_castling_rights[self.next_side]:
+            match moved_piece:
+                case "K":
+                    current_castling_rights.clear()
+                case "R":
+                    if old_square in ROOK_SQUARES_VOIDING_CASTLING and (
+                        voided_right := PIECE_OF_SIDE[
+                            (self.next_side, ROOK_SQUARES_VOIDING_CASTLING[old_square])
+                        ]
+                    ):
+                        current_castling_rights.remove(voided_right)
+
+        # Updates remaining metadata
         self.next_side = OPPOSITE_SIDE[self.next_side]
         self.en_passant_bitboard = en_passant_bitboard
 

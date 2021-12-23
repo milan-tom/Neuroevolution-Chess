@@ -16,9 +16,15 @@ import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from chess_logic.board import Coord, PIECE_SIDE, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
+from chess_logic.board import (
+    Coord,
+    PIECE_SIDE,
+    PIECE_OF_SIDE,
+    PIECES,
+    ROWS_AND_COLUMNS,
+    STARTING_FEN,
+)
 from chess_logic.core_chess import Chess, Move
-from chess_logic.move_generation import PIECE_OF_SIDE
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
@@ -93,7 +99,7 @@ class ChessGUI:
           8x8 chess board (0-based increasing from top to bottom and left to right)
     """
 
-    def __init__(self, display_size: Coord = (0, 0), fen=STARTING_FEN) -> None:
+    def __init__(self, display_size: Coord = (0, 0), fen: str = STARTING_FEN) -> None:
         """Initialises chess board state and GUI components, and draws board"""
         pygame.display.set_caption("Chess GUI")
 

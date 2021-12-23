@@ -1,7 +1,7 @@
 """Contains final layer of chess state handling"""
 
-from chess_logic.board import Coord, OPPOSITE_SIDE, STARTING_FEN
-from chess_logic.move_generation import Move, PIECE_OF_SIDE, MoveGenerator
+from chess_logic.board import Coord, OPPOSITE_SIDE, PIECE_OF_SIDE, STARTING_FEN
+from chess_logic.move_generation import Move, MoveGenerator
 
 
 class Chess(MoveGenerator):
@@ -24,7 +24,7 @@ class Chess(MoveGenerator):
         if captured_piece := self.get_piece_at_square(move.new_square):
             self.remove_bitboard_square(captured_piece, move.new_square)
         self.move_piece_bitboard_square(
-            self.get_piece_at_square(move.old_square),
+            moved_piece := self.get_piece_at_square(move.old_square),
             move.old_square,
             move.new_square,
         )
@@ -43,6 +43,10 @@ class Chess(MoveGenerator):
                 )
             case "DOUBLE PUSH":
                 en_passant_bitboard = move.context_data
+            case "CASTLING":
+                self.move_piece_bitboard_square(
+                    PIECE_OF_SIDE[(self.next_side, "R")], *move.context_data
+                )
 
-        self.update_metadata(en_passant_bitboard)
+        self.update_metadata(en_passant_bitboard, moved_piece, move.old_square)
         self.update_board_state()

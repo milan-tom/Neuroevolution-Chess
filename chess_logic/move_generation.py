@@ -8,6 +8,8 @@ from typing import Any, Iterator, NamedTuple, Optional
 from chess_logic.board import (
     Bitboard,
     BITBOARD_SQUARE,
+    CASTLING_ROOK_MOVES,
+    CASTLING_SYMBOLS,
     Coord,
     ChessBoard,
     OPPOSITE_SIDE,
@@ -23,7 +25,6 @@ Context = tuple[str, Any]
 
 STANDARD_PIECES = PIECES[:6]
 PROMOTION_PIECES = STANDARD_PIECES[1:-1]
-PIECE_OF_SIDE = {(side, piece.upper()): piece for piece, side in PIECE_SIDE.items()}
 
 RANK0 = 2 ** 8 - 1
 RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
@@ -167,6 +168,18 @@ def shift_direction(old: Bitboard, new: Bitboard) -> int:
     raise ValueError("New square is not directly reachable from old square")
 
 
+CASTLING_SQUARES_TO_CHECK = {
+    symbol: [SQUARE_BITBOARD[(7, column)] for column in column_range]
+    for symbol, column_range in zip(
+        CASTLING_SYMBOLS, (range(5, 7), range(4, 1, -1), range(3, 0, -1), range(4, 6))
+    )
+}
+CASTLING_CLEAR_BITBOARD = {
+    symbol: reduce(or_, squares_to_check)
+    for symbol, squares_to_check in CASTLING_SQUARES_TO_CHECK.items()
+}
+
+
 class PseudoMove(NamedTuple):
     """Stores all data associated with pseudo-legal move as NamedTuple for checks"""
 
@@ -237,6 +250,9 @@ class MoveGenerator(ChessBoard):
 
         king_bitboard = self.move_boards["K"]
         pinned, blockable = self.get_pinned_and_blockable(king_bitboard)
+
+        if not self.is_check:
+            yield from self.generate_castling_moves()
 
         # Iterates through generated pseudo-legal moves, yielding those that are legal
         for move in self.generate_pseudo_legal_moves():
@@ -383,12 +399,28 @@ class MoveGenerator(ChessBoard):
             for shift in KING_SHIFTS
         )
 
+    def generate_castling_moves(self) -> Iterator[PseudoMove]:
+        """Yields all possible castling moves for current side"""
+        for castling_right in self.side_castling_rights[self.next_side]:
+            squares_to_check = CASTLING_SQUARES_TO_CHECK[castling_right]
+            if not (
+                CASTLING_CLEAR_BITBOARD[castling_right] & self.move_boards["GAME"]
+                or any(map(self.square_attacked, squares_to_check))
+            ):
+                yield PseudoMove(
+                    self.move_boards["K"],
+                    squares_to_check[-1],
+                    "CASTLING",
+                    CASTLING_ROOK_MOVES[castling_right],
+                )
+
     def generate_pseudo_legal_moves(self) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for all pieces in current board state"""
         # Non-slider moves
         for piece, masks in NON_SLIDER_PIECES_AND_MASKS:
             yield from non_slider_moves(self.move_boards[piece], masks)
 
+        # Generate remaining moves
         for move_func, piece in self.move_functions_and_pieces:
             yield from move_func(self.move_boards[piece])
 
