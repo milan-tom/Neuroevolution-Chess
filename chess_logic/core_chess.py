@@ -48,5 +48,7 @@ class Chess(MoveGenerator):
                     PIECE_OF_SIDE[(self.next_side, "R")], *move.context_data
                 )
 
-        self.update_metadata(en_passant_bitboard, moved_piece, move.old_square)
+        self.update_metadata(
+            moved_piece, move.old_square, en_passant_bitboard, captured_piece
+        )
         self.update_board_state()

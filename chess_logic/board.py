@@ -3,10 +3,12 @@ Handles all logic concerning initialising a chess state, generating moves from t
 state, and executing them on the state
 """
 
-from dataclasses import astuple, dataclass
+from dataclasses import astuple
 from itertools import combinations, product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
+
+from pydantic.dataclasses import dataclass
 
 Bitboard = int
 Coord = Sequence[int]
@@ -89,13 +91,15 @@ def rotate_bitboard(board: Bitboard) -> Bitboard:
 class BoardMetadata:
     """Dataclass storing metadata associated with a board state"""
 
+    # pylint: disable=attribute-defined-outside-init
+
     next_side: str
     fen_castling: str
     fen_en_passant_square: str
-    half_move_clock: str
-    move_number: str
+    half_move_clock: int
+    move_number: int
 
-    def __post_init__(self) -> None:
+    def __post_init_post_parse__(self) -> None:
         """Alters value of 'next_side' to conform with our labels for sides"""
         self.next_side = SIDES["wb".index(self.next_side)]
         self.side_castling_rights = FEN_CASTLING_TO_RIGHTS[self.fen_castling]
@@ -112,11 +116,15 @@ class BoardMetadata:
             if self.next_side == "WHITE"
             else self.en_passant_bitboard
         ]
-        metadata = astuple(self)
+        metadata = tuple(map(str, astuple(self)))
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
     def update_metadata(
-        self, en_passant_bitboard: Bitboard, moved_piece: str, old_square: Coord
+        self,
+        moved_piece: str,
+        old_square: Coord,
+        en_passant_bitboard: Bitboard,
+        captured_piece: Optional[str],
     ) -> None:
         """Updates board metadata after move"""
         # Updates castling rights
@@ -135,6 +143,12 @@ class BoardMetadata:
         # Updates remaining metadata
         self.next_side = OPPOSITE_SIDE[self.next_side]
         self.en_passant_bitboard = en_passant_bitboard
+        self.half_move_clock = (
+            0
+            if moved_piece.upper() == "P" or captured_piece is not None
+            else self.half_move_clock + 1
+        )
+        self.move_number += self.next_side == "WHITE"
 
 
 class ChessBoard(BoardMetadata):
