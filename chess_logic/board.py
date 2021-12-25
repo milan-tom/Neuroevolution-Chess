@@ -133,10 +133,9 @@ class BoardMetadata:
                 case "K":
                     current_castling_rights.clear()
                 case "R":
-                    if old_square in ROOK_SQUARES_VOIDING_CASTLING and (
-                        voided_right := PIECE_OF_SIDE[
-                            (self.next_side, ROOK_SQUARES_VOIDING_CASTLING[old_square])
-                        ]
+                    if (
+                        voided_right := ROOK_SQUARES_VOIDING_CASTLING.get(old_square)
+                        in current_castling_rights
                     ):
                         current_castling_rights.remove(voided_right)
 
