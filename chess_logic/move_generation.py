@@ -333,7 +333,7 @@ class MoveGenerator(ChessBoard):
                 self.is_check = True
                 blockable |= knight_blockable
 
-        return blockable, pinned
+        return pinned, blockable
 
     def oriented_bitboards(self, bitboards: Bitboards) -> Bitboards:
         """
