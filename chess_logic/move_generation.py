@@ -484,7 +484,9 @@ class MoveGenerator(ChessBoard):
                                 piece_mask,
                                 shifted_piece,
                                 "EN PASSANT",
-                                self.move_bitboard_to_square(piece_mask << shift - 8),
+                                self.move_bitboard_to_square(
+                                    signed_shift(piece_mask, shift - 8)
+                                ),
                             )
 
     def promotion_checked_moves(
