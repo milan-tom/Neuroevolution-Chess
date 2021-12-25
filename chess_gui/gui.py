@@ -4,8 +4,10 @@ state
 """
 
 from __future__ import annotations
+from bisect import bisect_right
 from functools import partial
 from itertools import cycle, product
+from operator import mul, sub
 from time import process_time
 from types import TracebackType
 from typing import Callable, Iterable, Optional
@@ -43,7 +45,7 @@ PIECE_IMAGES = {
 
 # Initialises pygame components and sets certain GUI parameters
 pygame.init()
-GAME_FONT = "Verdana"
+GAME_FONT = pygame.freetype.SysFont("Verdana", 0)
 
 
 class Design(pygame.Surface):
@@ -53,11 +55,16 @@ class Design(pygame.Surface):
         """Initialises design surface and relevant attributes"""
         # Initialises parent class to creates dummy window for implementing design,
         # enabling scaling to any screen
-        super().__init__((1536, 864))
+        self.width, self.height = self.resolution = 1536, 864
+        super().__init__(self.resolution)
 
         self.square_size = 108  # Size of square in pixels to fill dummy window's height
         # Stores colour codes for light and dark squares, respectively
         self.board_colours = (240, 217, 181), (187, 129, 65)
+
+        # Creates subsurface for area of design window not covered by board
+        board = self.square_size * 8, 0
+        self.non_board_area = self.subsurface(*board, *map(sub, self.resolution, board))
 
     def dimension_to_pixel(self, dimension: int) -> int:
         """Scales row/column to pixel coordinate"""
@@ -169,10 +176,26 @@ class ChessGUI:
             onRelease=func,
         ).draw()
 
-    def show_text(self, text: str, size: int, location: Coord) -> None:
-        """Displays text of the prconfigured font at the given location"""
-        pygame.freetype.SysFont(GAME_FONT, size).render_to(
-            self.design, location, text, "white"
+    def show_text(
+        self,
+        text: str,
+        rel_width: float = 0.8,
+        rel_x: float = 0.5,
+        rel_y: float = 0.5,
+    ) -> None:
+        """Displays text of the preconfigured font at the given location"""
+        resolution = 0.1
+        size = resolution * bisect_right(
+            list(range(1, int(100 / resolution))),
+            rel_width * self.design.non_board_area.get_rect().width,
+            key=lambda x: GAME_FONT.get_rect(text, size=x * resolution).width,
+        )
+        text_rect = GAME_FONT.get_rect(text, size=size)
+        text_rect.center = tuple(
+            map(mul, (rel_x, rel_y), self.design.non_board_area.get_rect()[2:])
+        )
+        GAME_FONT.render_to(
+            self.design.non_board_area, text_rect, text, "white", size=size
         )
         self.update()
 
@@ -201,6 +224,8 @@ class ChessGUI:
         pygame_widgets.WidgetHandler.getWidgets().clear()
         self.design.draw_board_squares()
         self.update()
+        if self.chess.game_over:
+            self.show_text(self.chess.game_over_message)
         self.draw_pieces()
 
     def show_moves(self, old_square: Coord) -> None:
@@ -232,10 +257,10 @@ class ChessGUI:
         """Displays all choices for promoting pawn"""
         for widget in pygame_widgets.WidgetHandler.getWidgets():
             widget.setOnRelease(lambda *args: None)
-        self.show_text("Choose the promotion piece:", 30, (970, 50))
+        self.show_text("Choose the promotion piece:", rel_y=0.075)
         for move_i, move in enumerate(promotion_moves):
             self.draw_button_at_square(
-                square=(1, 9 + move_i),
+                square=(1, 9.15 + move_i),
                 func=partial(self.move_piece, move),
                 image=self.piece_images[move.context_data],
             )

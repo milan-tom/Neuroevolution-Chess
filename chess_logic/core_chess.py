@@ -9,11 +9,28 @@ class Chess(MoveGenerator):
 
     def __init__(self, fen: str = STARTING_FEN) -> None:
         super().__init__(fen)
+        self.game_over = False
+        self.winner = self.game_over_message = None
         self.update_board_state()
 
     def update_board_state(self) -> None:
         """Performs necessary updates when board state changed"""
         self.current_legal_moves = self.legal_moves()
+        self.game_over = True
+        if not self.current_legal_moves:
+            if self.is_check:
+                self.is_checkmate = True
+                self.winner = OPPOSITE_SIDE[self.next_side]
+                self.game_over_message = f"{self.winner.title()} wins by checkmate"
+            else:
+                self.is_stalemate = True
+                self.game_over_message = "Draw by stalemate"
+        elif self.half_move_clock >= 100:
+            self.fifty_move_rule_reached = True
+            self.game_over_message = "Draw by fifty move rule"
+            self.current_legal_moves = []
+        else:
+            self.game_over = False
 
     def legal_moves_from_square(self, square: Coord) -> list[Move]:
         """Returns all legal moves from specific square on board"""
