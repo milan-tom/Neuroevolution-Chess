@@ -1,10 +1,10 @@
 """Contains all unit tests for management of chess board state"""
 
-import unittest
+import pytest
 
-from chess_logic.board import fens_portion, STARTING_FEN
-from chess_logic.core_chess import Chess, Move
-from tests import RANDOM_FENS, TEST_FENS
+from chess_logic.board import STARTING_FEN
+from chess_logic.core_chess import Move
+from tests import RANDOM_FENS
 
 RANDOM_MOVES = (
     Move((1, 4), (0, 5)),
@@ -20,33 +20,27 @@ MOVED_FENS = (
 )
 
 
-class ChessBoardTest(unittest.TestCase):
-    """Holds chess board unit tests and relevant helper functions"""
-
-    def test_fen_to_chess_state_conversion(self) -> None:
-        """
-        Tests conversion of FENs to bitboards and other board state-specific parameters
-        via allowing 'Chess' class to extract the chess state from fens and then
-        re-extracting the FENs based on this chess states bitboard, checking they match
-        """
-        # Tests default starting position, empty position and random positions
-        for test_fen in TEST_FENS:
-            with self.subTest(test_fen=test_fen):
-                test_chess = Chess() if test_fen == STARTING_FEN else Chess(test_fen)
-                self.assertEqual(test_chess.fen, test_fen)
-
-    def test_moving_pieces(self) -> None:
-        """Tests basic piece movement where piece moves to empty square"""
-        # Loops through test moves, performing them on the starting states from the
-        # first few of the previously defined 'RANDOM_FENS'
-        for original_fen, move, new_fen in zip(RANDOM_FENS, RANDOM_MOVES, MOVED_FENS):
-            with self.subTest(original_fen=original_fen, move=move, new_fen=new_fen):
-                test_chess = Chess(original_fen)
-                test_chess.move_piece(move)
-                # Verifies correctness of positions and next side portions of actual FEN
-                for portion in range(1):
-                    self.assertEqual(*fens_portion((test_chess.fen, new_fen), portion))
+def test_default_fen(chess) -> None:
+    """Tests that Chess state created with no FEN has starting FEN by default"""
+    assert chess.fen == STARTING_FEN
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.parametrize("chess, test_fen", zip(*[RANDOM_FENS] * 2), indirect=["chess"])
+def test_fen_to_chess_state_conversion(chess, test_fen) -> None:
+    """
+    Tests conversion of FENs to bitboards and other board state-specific parameters
+    via allowing 'Chess' class to extract the chess state from fens and then
+    re-extracting the FENs based on this chess states bitboard, checking they match
+    """
+    assert chess.fen == test_fen
+
+
+@pytest.mark.parametrize(
+    "chess, move, new_fen",
+    zip(RANDOM_FENS, RANDOM_MOVES, MOVED_FENS),
+    indirect=["chess"],
+)
+def test_moving_pieces(chess, move, new_fen) -> None:
+    """Tests basic piece movement where piece moves to empty square"""
+    chess.move_piece(move)
+    assert chess.fen == new_fen

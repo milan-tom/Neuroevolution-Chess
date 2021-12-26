@@ -9,7 +9,6 @@ from functools import partial
 from itertools import cycle, product
 from operator import mul, sub
 from time import process_time
-from types import TracebackType
 from typing import Callable, Iterable, Optional
 import os
 
@@ -272,10 +271,6 @@ class ChessGUI:
         self.chess.move_piece(move)
         self.draw_board()
 
-    def __enter__(self) -> ChessGUI:
-        """Enables use of GUI in 'with' statement"""
-        return self
-
     def mainloop(self, time_limit: int | float = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
@@ -284,19 +279,10 @@ class ChessGUI:
             # pylint: disable=superfluous-parens
             for event in (events := pygame.event.get()):
                 if event.type == pygame.QUIT:
-                    self.__exit__()
+                    self.running = False
 
             pygame_widgets.update(events)
             pygame.display.update()
-
-    def __exit__(
-        self,
-        exc_type: BaseException = None,
-        exc_val: BaseException = None,
-        exc_tb: TracebackType = None,
-    ) -> None:
-        """Enables use of GUI in 'with' statement, closing when with statement ends"""
-        self.running = False
 
 
 if __name__ == "__main__":
