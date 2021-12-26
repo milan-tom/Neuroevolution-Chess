@@ -1,6 +1,6 @@
 """Contains any useful constants and functions needed by multiple tests"""
 
-from chess_logic.board import EMPTY_FEN, STARTING_FEN
+from chess_logic.board import STARTING_FEN
 
 RANDOM_FENS = (
     "1r6/2R1k1pp/3bp3/5p2/4n3/BP2P3/3N1PPP/6K1 b - - 3 24",
@@ -13,4 +13,4 @@ RANDOM_FENS = (
     "r5k1/bpR2pp1/p6p/P2P4/1P1N4/3n1NPP/4rP1K/R7 b - - 2 24",
     "r1bqk2r/1pp1bppp/2n2n2/p3p3/2PP4/3P1NP1/PP3PBP/RNBQ1RK1 b kq - 0 8",
 )
-TEST_FENS = (STARTING_FEN, EMPTY_FEN) + RANDOM_FENS
+TEST_FENS = (STARTING_FEN,) + RANDOM_FENS

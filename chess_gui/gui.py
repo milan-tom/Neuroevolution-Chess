@@ -48,6 +48,11 @@ pygame.init()
 GAME_FONT = pygame.freetype.SysFont("Verdana", 0)
 
 
+def rect_range(rect: pygame.Rect):
+    """Returns all coordinates within specified pygame Rect object"""
+    return product(*(range(rect[i], sum(rect[i::2])) for i in range(2)))
+
+
 class Design(pygame.Surface):
     """Represents the design surface used by the GUI"""
 
@@ -71,7 +76,7 @@ class Design(pygame.Surface):
         return dimension * self.square_size
 
     def square_to_pixel(self, square: Coord) -> Coord:
-        """Returns (scaled) pixel coordinate equivalent of square coordinate"""
+        """Returns pixel coordinate equivalent of square coordinate"""
         return tuple(map(self.dimension_to_pixel, square[::-1]))
 
     def get_square_rect(self, square: Coord) -> pygame.Rect:
@@ -79,6 +84,10 @@ class Design(pygame.Surface):
         return pygame.Rect(
             *(list(self.square_to_pixel(square)) + [self.square_size] * 2)
         )
+
+    def get_square_range(self, square: Coord) -> Iterable[Coord]:
+        """Returns all coordinates within specified square"""
+        return rect_range(self.get_square_rect(square))
 
     def get_square_colour(self, square: Coord) -> tuple[int, int, int]:
         """Returns colour on board of given square"""
@@ -145,16 +154,9 @@ class ChessGUI:
             )
         ]
 
-    def get_square_range(self, square: Coord, scaled: bool = False) -> Iterable[Coord]:
-        """Returns all (scaled) coordinates within specified square"""
-        square_details = self.design.get_square_rect(square)
-        if scaled:
-            square_details = self.scale_coords(square_details)
-        square_x, square_y, x_square_size, y_square_size = square_details
-        return product(
-            range(square_x, square_x + x_square_size),
-            range(square_y, square_y + y_square_size),
-        )
+    def get_square_range(self, square: Coord) -> Iterable[Coord]:
+        """Returns all scaled coordinates within specified square"""
+        return rect_range(self.scale_coords(self.design.get_square_rect(square)))
 
     def draw_button_at_square(
         self,

@@ -26,7 +26,6 @@ SQUARE_BITBOARD: dict[Coord, Bitboard] = {
 BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-EMPTY_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"
 
 FEN_TO_BITBOARD_SQUARE = {
     f"{file}{rank_i + 1}": SQUARE_BITBOARD[(rank_i, file_i)]
