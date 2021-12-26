@@ -139,7 +139,7 @@ KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
 }
 PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
 NON_SLIDER_PIECES_AND_MASKS = list(zip("KN", (KING_MASKS, KNIGHT_MASKS)))
-REMAINING_PIECES = filter(lambda piece: piece not in "KN", STANDARD_PIECES)
+REMAINING_PIECES = [piece for piece in STANDARD_PIECES if piece not in "KN"]
 
 
 def non_slider_moves(piece_bitboard: Bitboard, masks: dict[int, Bitboard]):
