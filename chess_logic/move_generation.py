@@ -177,12 +177,14 @@ def shift_direction(old: Bitboard, new: Bitboard) -> int:
 CASTLING_SQUARES_TO_CHECK = {
     symbol: [SQUARE_BITBOARD[(7, column)] for column in column_range]
     for symbol, column_range in zip(
-        CASTLING_SYMBOLS, (range(5, 7), range(4, 1, -1), range(3, 0, -1), range(4, 6))
+        CASTLING_SYMBOLS, (range(5, 7), range(3, 1, -1), range(2, 0, -1), range(4, 6))
     )
 }
 CASTLING_CLEAR_BITBOARD = {
-    symbol: reduce(or_, squares_to_check)
-    for symbol, squares_to_check in CASTLING_SQUARES_TO_CHECK.items()
+    symbol: reduce(or_, squares + [signed_shift(squares[-1], extra_shift)])
+    for (symbol, squares), extra_shift in zip(
+        CASTLING_SQUARES_TO_CHECK.items(), (0, 1, 0, -1)
+    )
 }
 
 

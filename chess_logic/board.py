@@ -4,7 +4,7 @@ state, and executing them on the state
 """
 
 from dataclasses import astuple
-from itertools import combinations, product
+from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
 
@@ -34,16 +34,6 @@ FEN_TO_BITBOARD_SQUARE = {
 BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
 
 CASTLING_SYMBOLS = "KQkq"
-FEN_CASTLING_TO_RIGHTS = {
-    "".join(fen_castling): {
-        side: [symbol for symbol in fen_castling if PIECE_SIDE[symbol] == side]
-        for side in SIDES
-    }
-    for symbols_length in range(1, len(CASTLING_SYMBOLS) + 1)
-    for fen_castling in combinations(CASTLING_SYMBOLS, symbols_length)
-}
-FEN_CASTLING_TO_RIGHTS["-"] = {side: [] for side in SIDES}
-
 CASTLING_ROOK_MOVES = dict(zip(CASTLING_SYMBOLS, (((7, 7), (7, 5)), ((7, 0), (7, 3)))))
 CASTLING_ROOK_MOVES |= {
     symbol.lower(): tuple(map(lambda square: (square[0] - 7, square[1]), squares))
@@ -52,6 +42,15 @@ CASTLING_ROOK_MOVES |= {
 ROOK_SQUARES_VOIDING_CASTLING = {
     squares[0]: castling for castling, squares in CASTLING_ROOK_MOVES.items()
 }
+
+
+def void_castling_by_rook(
+    castling_rights: list[str], rook_square: Coord
+) -> Optional[str]:
+    """Removes castling right voided by rook move/capture if any"""
+    if (right := ROOK_SQUARES_VOIDING_CASTLING.get(rook_square)) in castling_rights:
+        castling_rights.remove(right)
+
 
 UNSIGN_MASK = (1 << 64) - 1
 
@@ -98,17 +97,26 @@ class BoardMetadata:
     move_number: int
 
     def __post_init_post_parse__(self) -> None:
-        """Alters value of 'next_side' to conform with our labels for sides"""
+        """Alters fen values  to represent data in more suitable forms"""
         self.next_side = SIDES["wb".index(self.next_side)]
-        self.side_castling_rights = FEN_CASTLING_TO_RIGHTS[self.fen_castling]
+        self.side_castling_rights = {
+            side: [
+                symbol
+                for symbol in self.fen_castling
+                if symbol != "-" and PIECE_SIDE[symbol] == side
+            ]
+            for side in SIDES
+        }
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
 
     @property
     def fen_metadata(self) -> str:
         """Returns fen representation of metadata"""
-        self.fen_castling = list(FEN_CASTLING_TO_RIGHTS.keys())[
-            list(FEN_CASTLING_TO_RIGHTS.values()).index(self.side_castling_rights)
-        ]
+        self.fen_castling = (
+            "".join(sum(rights, []))
+            if any(rights := self.side_castling_rights.values())
+            else "-"
+        )
         self.fen_en_passant_square = BITBOARD_TO_FEN_SQUARE[
             rotate_bitboard(self.en_passant_bitboard)
             if self.next_side == "WHITE"
@@ -119,23 +127,20 @@ class BoardMetadata:
 
     def update_metadata(
         self,
-        moved_piece: str,
         old_square: Coord,
+        new_square: Coord,
         en_passant_bitboard: Bitboard,
+        moved_piece: str,
         captured_piece: Optional[str],
     ) -> None:
         """Updates board metadata after move"""
         # Updates castling rights
-        if current_castling_rights := self.side_castling_rights[self.next_side]:
-            match moved_piece:
+        if next_side_castling_rights := self.side_castling_rights[self.next_side]:
+            match moved_piece.upper():
                 case "K":
-                    current_castling_rights.clear()
+                    next_side_castling_rights.clear()
                 case "R":
-                    if (
-                        voided_right := ROOK_SQUARES_VOIDING_CASTLING.get(old_square)
-                        in current_castling_rights
-                    ):
-                        current_castling_rights.remove(voided_right)
+                    void_castling_by_rook(next_side_castling_rights, old_square)
 
         # Updates remaining metadata
         self.next_side = OPPOSITE_SIDE[self.next_side]
@@ -146,6 +151,10 @@ class BoardMetadata:
             else self.half_move_clock + 1
         )
         self.move_number += self.next_side == "WHITE"
+
+        # Removes castling right of new side to move if relevant rook just captured
+        if captured_piece is not None and captured_piece.upper() == "R":
+            void_castling_by_rook(self.side_castling_rights[self.next_side], new_square)
 
 
 class ChessBoard(BoardMetadata):

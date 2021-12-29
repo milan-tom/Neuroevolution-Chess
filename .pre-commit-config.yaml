@@ -21,7 +21,6 @@ repos:
     rev: v2.11.1
     hooks:
     -   id: pylint
-        args: [--max-line-length=88, --disable=import-error, --unsafe-load-any-extension=y]
 
 # Disable mypy checks until match statement supported (https://github.com/python/mypy/pull/10191)
 #-   repo: https://github.com/pre-commit/mirrors-mypy

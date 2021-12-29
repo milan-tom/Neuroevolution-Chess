@@ -67,7 +67,7 @@ class Chess(MoveGenerator):
                 )
 
         self.update_metadata(
-            moved_piece, move.old_square, en_passant_bitboard, captured_piece
+            *move[:2], en_passant_bitboard, moved_piece, captured_piece
         )
         self.update_board_state()
         return self

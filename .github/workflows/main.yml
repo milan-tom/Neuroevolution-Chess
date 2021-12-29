@@ -22,7 +22,7 @@ jobs:
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
       - name: Lint with pylint
         run: |
-          pylint_runner --max-line-length=88 --disable=import-error --unsafe-load-any-extension=y
+          pylint_runner
       - name: Test with pytest
         run: |
           pytest
