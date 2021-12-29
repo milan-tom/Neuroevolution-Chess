@@ -108,6 +108,8 @@ class BoardMetadata:
             for side in SIDES
         }
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
+        if self.en_passant_bitboard and self.next_side == "BLACK":
+            self.en_passant_bitboard = rotate_bitboard(self.en_passant_bitboard)
 
     @property
     def fen_metadata(self) -> str:
@@ -119,7 +121,7 @@ class BoardMetadata:
         )
         self.fen_en_passant_square = BITBOARD_TO_FEN_SQUARE[
             rotate_bitboard(self.en_passant_bitboard)
-            if self.next_side == "WHITE"
+            if self.next_side == "BLACK"
             else self.en_passant_bitboard
         ]
         metadata = tuple(map(str, astuple(self)))
