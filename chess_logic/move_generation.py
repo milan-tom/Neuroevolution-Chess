@@ -18,12 +18,17 @@ from chess_logic.board import (
     PIECES,
     rotate_bitboard,
     ROWS_AND_COLUMNS,
+    SIDES,
     SQUARE_BITBOARD,
 )
 
 Bitboards = dict[str, Bitboard]
 Context = tuple[str, Any]
 
+PIECE_OF_SIDE = {
+    side: {piece.upper(): piece for piece in PIECES if PIECE_SIDE[piece] == side}
+    for side in SIDES
+}
 STANDARD_PIECES = PIECES[:6]
 PROMOTION_PIECES = STANDARD_PIECES[1:-1]
 

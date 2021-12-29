@@ -17,7 +17,6 @@ PIECES = "KQRBNPkqrbnp"
 SIDES = ["WHITE", "BLACK"]
 OPPOSITE_SIDE = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
 PIECE_SIDE = {piece: SIDES[piece.islower()] for piece in PIECES}
-PIECE_OF_SIDE = {(side, piece.upper()): piece for piece, side in PIECE_SIDE.items()}
 
 ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
 SQUARE_BITBOARD: dict[Coord, Bitboard] = {

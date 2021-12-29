@@ -1,8 +1,8 @@
 """Contains final layer of chess state handling"""
 from __future__ import annotations
 
-from chess_logic.board import Coord, OPPOSITE_SIDE, PIECE_OF_SIDE, STARTING_FEN
-from chess_logic.move_generation import Move, MoveGenerator
+from chess_logic.board import Coord, OPPOSITE_SIDE, STARTING_FEN
+from chess_logic.move_generation import Move, MoveGenerator, PIECE_OF_SIDE
 
 
 class Chess(MoveGenerator):
@@ -51,19 +51,19 @@ class Chess(MoveGenerator):
         match move.context_flag:
             case "PROMOTION":
                 self.remove_bitboard_square(
-                    PIECE_OF_SIDE[(self.next_side, "P")], move.new_square
+                    PIECE_OF_SIDE[self.next_side]["P"], move.new_square
                 )
                 self.add_bitboard_square(move.context_data, move.new_square)
             case "EN PASSANT":
                 self.remove_bitboard_square(
-                    PIECE_OF_SIDE[(OPPOSITE_SIDE[self.next_side], "P")],
+                    PIECE_OF_SIDE[OPPOSITE_SIDE[self.next_side]]["P"],
                     move.context_data,
                 )
             case "DOUBLE PUSH":
                 en_passant_bitboard = move.context_data
             case "CASTLING":
                 self.move_piece_bitboard_square(
-                    PIECE_OF_SIDE[(self.next_side, "R")], *move.context_data
+                    PIECE_OF_SIDE[self.next_side]["R"], *move.context_data
                 )
 
         self.update_metadata(

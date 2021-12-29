@@ -16,15 +16,9 @@ import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from chess_logic.board import (
-    Coord,
-    PIECE_SIDE,
-    PIECE_OF_SIDE,
-    PIECES,
-    ROWS_AND_COLUMNS,
-    STARTING_FEN,
-)
+from chess_logic.board import Coord, PIECE_SIDE, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
 from chess_logic.core_chess import Chess, Move
+from chess_logic.move_generation import PIECE_OF_SIDE
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
@@ -207,7 +201,7 @@ class ChessGUI:
             if piece := self.chess.get_piece_at_square(square):
                 colour = (
                     "red"
-                    if piece == PIECE_OF_SIDE[(self.chess.next_side, "K")]
+                    if piece == PIECE_OF_SIDE[self.chess.next_side]["K"]
                     and self.chess.is_check
                     else self.design.get_square_colour(square)
                 )
