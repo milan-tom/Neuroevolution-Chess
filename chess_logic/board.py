@@ -28,8 +28,8 @@ BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 FEN_TO_BITBOARD_SQUARE = {
-    f"{file}{rank_i + 1}": SQUARE_BITBOARD[(rank_i, file_i)]
-    for file_i, file in enumerate(reversed("abcdefgh"))
+    f"{file}{8 - rank_i}": SQUARE_BITBOARD[(rank_i, file_i)]
+    for file_i, file in enumerate("abcdefgh")
     for rank_i in range(8)
 } | {"-": 0}
 BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
