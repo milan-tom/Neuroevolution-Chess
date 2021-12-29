@@ -30,7 +30,9 @@ PIECE_OF_SIDE = {
     for side in SIDES
 }
 STANDARD_PIECES = PIECES[:6]
-PROMOTION_PIECES = STANDARD_PIECES[1:-1]
+PROMOTION_PIECES = {
+    side: "".join(map(PIECE_OF_SIDE[side].get, STANDARD_PIECES[1:-1])) for side in SIDES
+}
 
 RANK0 = 2 ** 8 - 1
 RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
@@ -516,8 +518,7 @@ class MoveGenerator(ChessBoard):
     ) -> Iterator[PseudoMove]:
         """Ensures moves yielded with correct options and flags if promoting pawn"""
         if self.promotion:
-            for piece in PROMOTION_PIECES:
+            for piece in PROMOTION_PIECES[self.next_side]:
                 yield PseudoMove(old_board, new_board, "PROMOTION", piece)
-
         else:
             yield PseudoMove(old_board, new_board)
