@@ -11,10 +11,8 @@ def test_instance_creator(__name, __obj):
 
     @pytest.fixture(name=__name)
     def fixture(request):
-        params = getattr(request, "param", [])
-        if isinstance(params, str):
-            params = (params,)
-        return __obj(*params if isinstance(params, tuple) else params)
+        params = getattr(request, "param", ())
+        return __obj(*(params if isinstance(params, tuple) else (params,)))
 
     return fixture
 

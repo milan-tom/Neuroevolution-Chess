@@ -8,6 +8,7 @@ from typing import Any, Iterator, NamedTuple, Optional
 from chess_logic.board import (
     Bitboard,
     BITBOARD_SQUARE,
+    BITBOARD_TO_FEN_SQUARE,
     CASTLING_ROOK_MOVES,
     CASTLING_SYMBOLS,
     Coord,
@@ -196,6 +197,20 @@ class Move(NamedTuple):
     new_square: Coord
     context_flag: Optional[str] = None
     context_data: Any = None
+
+    def __str__(self):
+        """Returns basic string representation of move (old square and new square)"""
+        # pylint: disable=unsubscriptable-object
+        move = "".join(
+            map(
+                lambda square: BITBOARD_TO_FEN_SQUARE[SQUARE_BITBOARD[square]], self[:2]
+            )
+        )
+        return (
+            move
+            if self.context_flag != "PROMOTION"
+            else move + self.context_data.lower()
+        )
 
 
 class MoveGenerator(ChessBoard):

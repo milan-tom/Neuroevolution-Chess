@@ -1,4 +1,5 @@
 """Contains final layer of chess state handling"""
+from __future__ import annotations
 
 from chess_logic.board import Coord, OPPOSITE_SIDE, PIECE_OF_SIDE, STARTING_FEN
 from chess_logic.move_generation import Move, MoveGenerator
@@ -36,8 +37,8 @@ class Chess(MoveGenerator):
         """Returns all legal moves from specific square on board"""
         return [move for move in self.current_legal_moves if move.old_square == square]
 
-    def move_piece(self, move: Move) -> None:
-        """Moves piece at given square to new square"""
+    def move_piece(self, move: Move) -> Chess:
+        """Moves piece at given square to new square, returning new chess state"""
         if captured_piece := self.get_piece_at_square(move.new_square):
             self.remove_bitboard_square(captured_piece, move.new_square)
         self.move_piece_bitboard_square(
@@ -69,3 +70,4 @@ class Chess(MoveGenerator):
             moved_piece, move.old_square, en_passant_bitboard, captured_piece
         )
         self.update_board_state()
+        return self

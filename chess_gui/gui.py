@@ -3,7 +3,6 @@ A chess GUI, enabling visualisation of a chess states and making moves from the 
 state
 """
 
-from __future__ import annotations
 from bisect import bisect_right
 from functools import partial
 from itertools import cycle, product
