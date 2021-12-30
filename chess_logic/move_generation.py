@@ -152,13 +152,19 @@ NON_SLIDER_PIECES_AND_MASKS = list(zip("KN", (KING_MASKS, KNIGHT_MASKS)))
 REMAINING_PIECES = [piece for piece in STANDARD_PIECES if piece not in "KN"]
 
 
-def non_slider_moves(piece_bitboard: Bitboard, masks: dict[int, Bitboard]):
+def non_slider_moves(
+    piece_bitboard: Bitboard,
+    masks: dict[int, Bitboard],
+    context_flag: Optional[Any] = None,
+):
     """Yields all pseudo-legal moves for either king or knight"""
     for i in range(piece_bitboard.bit_length()):
         piece_mask = 1 << i
         if piece_mask & piece_bitboard:
             for shift, mask in masks.items():
-                yield PseudoMove(piece_mask, signed_shift(piece_mask & mask, shift))
+                yield PseudoMove(
+                    piece_mask, signed_shift(piece_mask & mask, shift), context_flag
+                )
 
 
 POSSIBLE_ATTACKERS = {shift: ["b", "q"] for shift in BISHOP_SHIFTS}
@@ -283,7 +289,7 @@ class MoveGenerator(ChessBoard):
         # Iterates through generated pseudo-legal moves, yielding those that are legal
         for move in self.generate_pseudo_legal_moves():
             if move.new_board & self.move_boards["~SAME"]:
-                if move.old_board == king_bitboard:
+                if move.context_flag == "K":
                     if not self.square_attacked(move.new_board):
                         yield move
                 else:
@@ -295,7 +301,7 @@ class MoveGenerator(ChessBoard):
                         ):
                             yield move
                     elif move.old_board & pinned:
-                        if shift_direction(
+                        if move.context_flag != "N" and shift_direction(
                             king_bitboard, move.old_board
                         ) == shift_direction(move.old_board, move.new_board):
                             yield move
@@ -448,7 +454,7 @@ class MoveGenerator(ChessBoard):
         """Yields all pseudo-legal moves for all pieces in current board state"""
         # Non-slider moves
         for piece, masks in NON_SLIDER_PIECES_AND_MASKS:
-            yield from non_slider_moves(self.move_boards[piece], masks)
+            yield from non_slider_moves(self.move_boards[piece], masks, piece)
 
         # Generate remaining moves
         for move_func, piece in self.move_functions_and_pieces:
