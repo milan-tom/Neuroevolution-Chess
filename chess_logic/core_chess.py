@@ -57,7 +57,7 @@ class Chess(MoveGenerator):
             case "EN PASSANT":
                 self.remove_bitboard_square(
                     PIECE_OF_SIDE[OPPOSITE_SIDE[self.next_side]]["P"],
-                    move.context_data,
+                    move.context_data[1],
                 )
             case "DOUBLE PUSH":
                 en_passant_bitboard = move.context_data

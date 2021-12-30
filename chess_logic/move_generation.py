@@ -288,7 +288,11 @@ class MoveGenerator(ChessBoard):
                         yield move
                 else:
                     if self.is_check:
-                        if move.old_board & ~pinned and move.new_board & blockable:
+                        if move.old_board & ~pinned and (
+                            move.new_board & blockable
+                            or move.context_flag == "EN PASSANT"
+                            and move.context_data[0] & blockable
+                        ):
                             yield move
                     elif move.old_board & pinned:
                         if shift_direction(
@@ -510,8 +514,11 @@ class MoveGenerator(ChessBoard):
                                 piece_mask,
                                 shifted_piece,
                                 "EN PASSANT",
-                                self.move_bitboard_to_square(
-                                    signed_shift(piece_mask, shift - 8)
+                                (
+                                    capture_bitboard := signed_shift(
+                                        piece_mask, shift - 8
+                                    ),
+                                    self.move_bitboard_to_square(capture_bitboard),
                                 ),
                             )
 
