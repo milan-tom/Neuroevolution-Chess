@@ -58,7 +58,7 @@ BISHOP_SHIFTS = {
     )
     for i, shift in enumerate((9, -7, 7, -9))
 }
-KING_SHIFTS = dict(sorted((ROOK_SHIFTS | BISHOP_SHIFTS).items(), reverse=True))
+KING_SHIFTS = ROOK_SHIFTS | BISHOP_SHIFTS
 SLIDER_SHIFTS = dict(zip(Slider, (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS)))
 
 
@@ -165,15 +165,15 @@ POSSIBLE_ATTACKERS = {shift: ["b", "q"] for shift in BISHOP_SHIFTS}
 POSSIBLE_ATTACKERS |= {shift: ["r", "q"] for shift in ROOK_SHIFTS}
 
 BITBOARD_INDEX = {1 << i: i for i in range(64)}
+POSSIBLE_PIN_SHIFTS = sorted(KING_SHIFTS.keys(), reverse=True)[:4]
 REVERSED_BITBOARD = {1 << i: 1 << 63 - i for i in range(64)}
 
 
 def shift_direction(old: Bitboard, new: Bitboard) -> int:
     """Returns core bitboard shift by which new square moved to from old"""
     difference = BITBOARD_INDEX[new] - BITBOARD_INDEX[old]
-    difference_positive = difference > 0
-    for shift in KING_SHIFTS:
-        if difference % shift == 0 and (shift > 0) == difference_positive:
+    for shift in POSSIBLE_PIN_SHIFTS:
+        if difference % shift == 0:
             return shift
     raise ValueError("New square is not directly reachable from old square")
 
