@@ -53,8 +53,10 @@ ROOK_SHIFTS |= {
     -shift: lambda square, i=i: 7 - square[i] for i, shift in enumerate(ROOK_SHIFTS)
 }
 BISHOP_SHIFTS = {
-    shift: lambda square, i=i: min(7 - x if i & j else x for j, x in enumerate(square))
-    for i, shift in enumerate((9, 7, -7, -9))
+    shift: lambda square, i=i: min(
+        7 - x if i & j else x for j, x in enumerate(square, 1)
+    )
+    for i, shift in enumerate((9, -7, 7, -9))
 }
 KING_SHIFTS = dict(sorted((ROOK_SHIFTS | BISHOP_SHIFTS).items(), reverse=True))
 SLIDER_SHIFTS = dict(zip(Slider, (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS)))
