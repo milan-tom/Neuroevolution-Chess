@@ -350,7 +350,7 @@ class MoveGenerator(ChessBoard):
                     first_attacker,
                     shift,
                     secondary_attacker_paths,
-                    pawn_possible=False,
+                    first_attacker=False,
                 )[1]
             ):
                 pinned |= first_attacker
@@ -385,7 +385,7 @@ class MoveGenerator(ChessBoard):
         square: Bitboard,
         shift: int,
         attacker_paths: Bitboard,
-        pawn_possible: bool = True,
+        first_attacker: bool = True,
     ) -> tuple[Bitboard, Bitboard]:
         """
         Returns first potential attacker square in given direction and attacker path if
@@ -407,10 +407,13 @@ class MoveGenerator(ChessBoard):
                     attacker & self.move_boards[possible_attacker]
                     for possible_attacker in POSSIBLE_ATTACKERS[shift]
                 )
-                or pawn_possible
-                and shift in PAWN_CAPTURE_SHIFTS_AND_MASKS
-                and attacker & self.move_boards["p"]
+                or first_attacker
                 and attacker_path.bit_count() == 1
+                and attacker
+                & (
+                    self.move_boards["k"]
+                    | self.move_boards["p"] * (shift in PAWN_CAPTURE_SHIFTS_AND_MASKS)
+                )
             ):
                 return attacker, attacker_path
         return attacker, 0
