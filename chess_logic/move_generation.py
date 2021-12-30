@@ -281,6 +281,7 @@ class MoveGenerator(ChessBoard):
         self.move_boards["OPPOSITE"] = self.move_boards[OPPOSITE_SIDE[self.next_side]]
 
         king_bitboard = self.move_boards["K"]
+        self.move_boards["NO KING GAME"] = self.move_boards["GAME"] & ~king_bitboard
         pinned, blockable = self.get_pinned_and_blockable(king_bitboard)
 
         if not self.is_check:
@@ -330,14 +331,10 @@ class MoveGenerator(ChessBoard):
             )
         )
 
-        # Removes king from game bitboard, preventing interference with attacks
-        self.move_boards["GAME"] &= ~king_bitboard
-
         # Finds attacks, pins, and blocks for all eight directions from king
         self.is_check = False
         blockable = pinned = 0
         for shift in KING_SHIFTS:
-
             first_attacker, first_attacker_path = self.checked_attacker_in_direction(
                 king_bitboard, shift, primary_attacker_paths
             )
@@ -426,7 +423,9 @@ class MoveGenerator(ChessBoard):
     def square_attacked(self, square: Bitboard) -> bool:
         """Checks if given square attacked by any opposing piece"""
         square_coords = BITBOARD_SQUARE[square]
-        square_attackers = self.move_boards["GAME"] & SLIDER_RAYS[Slider.KING][square]
+        square_attackers = (
+            self.move_boards["NO KING GAME"] & SLIDER_RAYS[Slider.KING][square]
+        )
         first_attacker_paths = move_board(
             square_coords, Slider.KING, blockers=square_attackers
         )
