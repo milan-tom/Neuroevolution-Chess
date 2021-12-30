@@ -391,25 +391,29 @@ class MoveGenerator(ChessBoard):
         Returns first potential attacker square in given direction and attacker path if
         square contains piece actually attacking king
         """
-        first_attacker_path = 0
-        first_attacker = square
-        while (next_attacker := signed_shift(first_attacker, shift)) & attacker_paths:
-            first_attacker = next_attacker
-            first_attacker_path |= first_attacker
+        attacker_path = 0
+        attacker = square
+        king_shiftable = KING_MASKS[shift]
+        while (
+            attacker & king_shiftable
+            and (next_attacker := signed_shift(attacker, shift)) & attacker_paths
+        ):
+            attacker = next_attacker
+            attacker_path |= attacker
 
-        if first_attacker & self.move_boards["OPPOSITE"]:
+        if attacker & self.move_boards["OPPOSITE"]:
             if (
                 any(
-                    first_attacker & self.move_boards[attacker]
-                    for attacker in POSSIBLE_ATTACKERS[shift]
+                    attacker & self.move_boards[possible_attacker]
+                    for possible_attacker in POSSIBLE_ATTACKERS[shift]
                 )
                 or pawn_possible
                 and shift in PAWN_CAPTURE_SHIFTS_AND_MASKS
-                and first_attacker & self.move_boards["p"]
-                and first_attacker_path.bit_count() == 1
+                and attacker & self.move_boards["p"]
+                and attacker_path.bit_count() == 1
             ):
-                return first_attacker, first_attacker_path
-        return first_attacker, 0
+                return attacker, attacker_path
+        return attacker, 0
 
     def generate_knight_attacks(self) -> None:
         """Pre-computes all attacks possible by opposing knights in current position"""
