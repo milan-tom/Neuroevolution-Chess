@@ -141,8 +141,8 @@ KING_MASKS = {
 KNIGHT_FORWARD_MASKS = {
     1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
     1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
-    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[0]),
-    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[7]),
+    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[7]),
+    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[0]),
 }
 KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
     -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
