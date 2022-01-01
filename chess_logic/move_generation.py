@@ -1,6 +1,5 @@
 """Handles move generation for all pieces"""
 
-from enum import auto, Enum
 from functools import reduce
 from operator import itemgetter, or_
 from typing import Any, Iterator, NamedTuple, Optional
@@ -39,15 +38,7 @@ RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
 FILE0 = sum(2 ** i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
-
-class Slider(Enum):
-    """Stores slider flags as enums"""
-
-    ROOK = auto()
-    BISHOP = auto()
-    KING = auto()
-
-
+SLIDERS = "RB"
 ROOK_SHIFTS = {shift: itemgetter(i) for i, shift in enumerate((8, 1))}
 ROOK_SHIFTS |= {
     -shift: lambda square, i=i: 7 - square[i] for i, shift in enumerate(ROOK_SHIFTS)
@@ -59,7 +50,7 @@ BISHOP_SHIFTS = {
     for i, shift in enumerate((9, -7, 7, -9))
 }
 KING_SHIFTS = ROOK_SHIFTS | BISHOP_SHIFTS
-SLIDER_SHIFTS = dict(zip(Slider, (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS)))
+SLIDER_SHIFTS = dict(zip(SLIDERS + "K", (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS)))
 
 
 def signed_shift(board: Bitboard, shift: int) -> Bitboard:
@@ -84,88 +75,111 @@ def blocker_configs(blocker_mask: Bitboard) -> Iterator[Bitboard]:
         yield blocker_config
 
 
-def move_board(
-    square: Coord, slider: Slider, mask_edges: bool = False, blockers: Bitboard = 0
+def slider_moves_in_direction(
+    square: Coord,
+    slider: str,
+    shift: int,
+    mask_edges: bool = False,
+    blockers: Bitboard = 0,
 ) -> Bitboard:
-    """Returns move board given current square, blockers present, and possible shifts"""
-    piece_mask = SQUARE_BITBOARD[square]
+    """Returns bitboard of moves available to slider in given direction from square"""
     moves = 0
-    for shift, max_move_func in SLIDER_SHIFTS[slider].items():
-        max_move = max_move_func(square)
-        # Prevents slider from reaching board border if required
-        if mask_edges:
-            max_move -= 1
-
-        # Adds all moves in current direction to overall move bitboard until blocked
-        move_mask = piece_mask
-        for _ in range(max_move):
-            move_mask = signed_shift(move_mask, shift)
-            moves |= move_mask
-            if move_mask & blockers:
-                break
+    move_mask = SQUARE_BITBOARD[square]
+    for _ in range(1 if mask_edges else 0, SLIDER_SHIFTS[slider][shift](square)):
+        move_mask = signed_shift(move_mask, shift)
+        moves |= move_mask
+        if move_mask & blockers:
+            break
     return moves
+
+
+def total_slider_moves(
+    square: Coord, slider: str, mask_edges: bool = False, blockers: Bitboard = 0
+) -> Bitboard:
+    """Returns bitboard of all moves available to slider from square"""
+    return reduce(
+        or_,
+        map(
+            lambda shift: slider_moves_in_direction(
+                square, slider, shift, mask_edges, blockers
+            ),
+            SLIDER_SHIFTS[slider],
+        ),
+    )
+
+
+def lsb(bitboard: Bitboard) -> Bitboard:
+    """Returns bitboard representing lowest set bit in given bitboard"""
+    return bitboard & -bitboard
+
+
+def msb(bitboard: Bitboard) -> Bitboard:
+    """Returns bitboard representing highest set bit in given bitboard"""
+    return 1 << bitboard.bit_length() - 1
+
+
+def bitboard_piece_masks(bitboard: Bitboard) -> Iterator[Bitboard]:
+    """Yields all piece masks (bitboard representing one piece) in given bitboard"""
+    while bitboard:
+        yield (piece_mask := lsb(bitboard))
+        bitboard &= ~piece_mask
+
+
+class PseudoMove(NamedTuple):
+    """Stores all data associated with pseudo-legal move as NamedTuple for checks"""
+
+    old_board: Bitboard
+    new_board: Bitboard
+    context_flag: Optional[str] = None
+    context_data: Any = None
 
 
 SLIDER_RAYS = {
     slider: {
-        SQUARE_BITBOARD[square]: move_board(
-            square, slider, mask_edges=slider != Slider.KING
-        )
+        SQUARE_BITBOARD[square]: total_slider_moves(square, slider, mask_edges=True)
         for square in ROWS_AND_COLUMNS
     }
-    for slider in Slider
+    for slider in SLIDERS
 }
+
+KING_ATTACK_PATH = {
+    SQUARE_BITBOARD[square]: {
+        shift: slider_moves_in_direction(square, "K", shift) for shift in KING_SHIFTS
+    }
+    for square in ROWS_AND_COLUMNS
+}
+
+
+def king_attacker_and_path_in_direction(shift, king_bitboard, attackers):
+    """Returns first attacker in given direction and path of attacker if any"""
+    attacker_path = KING_ATTACK_PATH[king_bitboard][shift]
+    if relevant_attackers := attacker_path & attackers:
+        if shift > 0:
+            first_attacker = lsb(relevant_attackers)
+            attacker_path &= (first_attacker << 1) - 1
+        else:
+            first_attacker = msb(relevant_attackers)
+            attacker_path &= ~(first_attacker - 1)
+    else:
+        first_attacker = 0
+    return first_attacker, attacker_path
+
 
 SLIDER_MOVES = {
     slider: {
-        (bitboard := SQUARE_BITBOARD[square]): {
-            blocker_config: move_board(square, slider, blockers=blocker_config)
-            for blocker_config in blocker_configs(SLIDER_RAYS[slider][bitboard])
+        (square_board := SQUARE_BITBOARD[square]): {
+            blocker_config: [
+                PseudoMove(square_board, new_board)
+                for new_board in bitboard_piece_masks(
+                    total_slider_moves(square, slider, blockers=blocker_config)
+                )
+            ]
+            for blocker_config in blocker_configs(SLIDER_RAYS[slider][square_board])
         }
         for square in ROWS_AND_COLUMNS
     }
-    for slider in Slider
-    if slider is not slider.KING
+    for slider in SLIDERS
 }
-
-KING_MASKS = {
-    +8 + 1: ~(RANKS[7] | FILES[7]),
-    +8 + 0: ~RANKS[7],
-    +8 - 1: ~(RANKS[7] | FILES[0]),
-    +0 + 1: ~FILES[7],
-    +0 - 1: ~FILES[0],
-    -8 + 1: ~(RANKS[0] | FILES[7]),
-    -8 + 0: ~RANKS[0],
-    -8 - 1: ~(RANKS[0] | FILES[0]),
-}
-KNIGHT_FORWARD_MASKS = {
-    1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
-    1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
-    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[7]),
-    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[0]),
-}
-KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
-    -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
-}
-PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
-NON_SLIDER_PIECES_AND_MASKS = list(zip("KN", (KING_MASKS, KNIGHT_MASKS)))
-REMAINING_PIECES = [piece for piece in STANDARD_PIECES if piece not in "KN"]
-
-
-def non_slider_moves(
-    piece_bitboard: Bitboard,
-    masks: dict[int, Bitboard],
-    context_flag: Optional[Any] = None,
-):
-    """Yields all pseudo-legal moves for either king or knight"""
-    for i in range(piece_bitboard.bit_length()):
-        piece_mask = 1 << i
-        if piece_mask & piece_bitboard:
-            for shift, mask in masks.items():
-                yield PseudoMove(
-                    piece_mask, signed_shift(piece_mask & mask, shift), context_flag
-                )
-
 
 POSSIBLE_ATTACKERS = {shift: ["b", "q"] for shift in BISHOP_SHIFTS}
 POSSIBLE_ATTACKERS |= {shift: ["r", "q"] for shift in ROOK_SHIFTS}
@@ -197,14 +211,58 @@ CASTLING_CLEAR_BITBOARD = {
     )
 }
 
+NON_SLIDERS = "KN"
+KING_MASKS = {
+    +8 + 1: ~(RANKS[7] | FILES[7]),
+    +8 + 0: ~RANKS[7],
+    +8 - 1: ~(RANKS[7] | FILES[0]),
+    +0 + 1: ~FILES[7],
+    +0 - 1: ~FILES[0],
+    -8 + 1: ~(RANKS[0] | FILES[7]),
+    -8 + 0: ~RANKS[0],
+    -8 - 1: ~(RANKS[0] | FILES[0]),
+}
+KNIGHT_FORWARD_MASKS = {
+    1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
+    1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
+    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[7]),
+    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[0]),
+}
+KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
+    -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
+}
+PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
+REMAINING_PIECES = [piece for piece in STANDARD_PIECES if piece not in "KN"]
 
-class PseudoMove(NamedTuple):
-    """Stores all data associated with pseudo-legal move as NamedTuple for checks"""
 
-    old_board: Bitboard
-    new_board: Bitboard
-    context_flag: Optional[str] = None
-    context_data: Any = None
+def non_slider_new_boards(masks: dict[int, Bitboard]) -> dict[Bitboard, list[Bitboard]]:
+    """Returns dictionary mapping of squares to list of new squares reachable"""
+    return {
+        piece_mask: [
+            signed_shift(piece_mask, shift)
+            for shift, mask in masks.items()
+            if piece_mask & mask
+        ]
+        for piece_mask in BITBOARD_INDEX
+    }
+
+
+NON_SLIDER_PIECE_MOVES = {
+    non_slider: {
+        piece_mask: [
+            PseudoMove(piece_mask, new_board, non_slider) for new_board in new_boards
+        ]
+        for piece_mask, new_boards in non_slider_new_boards(masks).items()
+    }
+    for non_slider, masks in zip(NON_SLIDERS, (KING_MASKS, KNIGHT_MASKS))
+}
+PAWN_CAPTURE_MOVES = non_slider_new_boards(PAWN_CAPTURE_SHIFTS_AND_MASKS)
+
+
+def total_non_slider_moves(non_slider: str, piece_bitboard: Bitboard):
+    """Yields all pseudo-legal moves for either king or knight"""
+    for piece_mask in bitboard_piece_masks(piece_bitboard):
+        yield from NON_SLIDER_PIECE_MOVES[non_slider][piece_mask]
 
 
 class Move(NamedTuple):
@@ -253,12 +311,12 @@ class MoveGenerator(ChessBoard):
             REVERSED_BITBOARD[move_bitboard] if self.rotate else move_bitboard
         ]
 
-    def legal_moves(self) -> list[Move]:
+    def legal_moves(self) -> tuple[Move]:
         """Returns a list of all legal moves in current board state"""
-        return [
+        return tuple(
             Move(*map(self.move_bitboard_to_square, move[:2]), *move[2:])
             for move in self.generate_legal_moves()
-        ]
+        )
 
     def generate_legal_moves(self) -> Iterator[PseudoMove]:
         """Yields all legal moves for all pieces in current board state"""
@@ -313,47 +371,38 @@ class MoveGenerator(ChessBoard):
         self, king_bitboard: Bitboard
     ) -> tuple[Bitboard, Bitboard]:
         """Returns bitboards representing current pinned and check-blocking squares"""
-        # Precomputes bitboards representing king and primary/secondary attackers
-        king_square = BITBOARD_SQUARE[king_bitboard]
-        king_attackers = (
-            self.move_boards["GAME"] & SLIDER_RAYS[Slider.KING][king_bitboard]
-        )
-        primary_attacker_paths = move_board(
-            king_square, Slider.KING, blockers=king_attackers
-        )
-        secondary_attacker_paths = (
-            0
-            if not primary_attacker_paths
-            else move_board(
-                king_square,
-                Slider.KING,
-                blockers=king_attackers & ~primary_attacker_paths,
-            )
-        )
-
         # Finds attacks, pins, and blocks for all eight directions from king
         self.is_check = False
         blockable = pinned = 0
         for shift in KING_SHIFTS:
-            first_attacker, first_attacker_path = self.checked_attacker_in_direction(
-                king_bitboard, shift, primary_attacker_paths
+            first_attacker, first_attacker_path = king_attacker_and_path_in_direction(
+                shift, king_bitboard, self.move_boards["GAME"]
             )
-            if first_attacker_path:
-                if self.is_check:
-                    blockable = 0
-                else:
-                    self.is_check = True
-                    blockable |= first_attacker_path
-            elif (
-                first_attacker & self.move_boards["SAME"] & ~king_bitboard
-                and self.checked_attacker_in_direction(
-                    first_attacker,
-                    shift,
-                    secondary_attacker_paths,
-                    first_attacker=False,
-                )[1]
-            ):
-                pinned |= first_attacker
+            if first_attacker:
+                if self.is_attacker_in_direction(
+                    first_attacker, first_attacker_path, shift
+                ):
+                    if self.is_check:
+                        blockable = 0
+                    else:
+                        self.is_check = True
+                        blockable |= first_attacker_path
+                elif first_attacker & self.move_boards["SAME"]:
+                    (
+                        second_attacker,
+                        second_attacker_path,
+                    ) = king_attacker_and_path_in_direction(
+                        shift,
+                        king_bitboard,
+                        self.move_boards["GAME"] & ~first_attacker_path,
+                    )
+                    if self.is_attacker_in_direction(
+                        second_attacker,
+                        second_attacker_path,
+                        shift,
+                        first_attacker=False,
+                    ):
+                        pinned |= first_attacker
 
         # Checks knight attacks on king
         self.generate_knight_attacks()
@@ -380,48 +429,32 @@ class MoveGenerator(ChessBoard):
             }
         return bitboards
 
-    def checked_attacker_in_direction(
+    def is_attacker_in_direction(
         self,
-        square: Bitboard,
+        attacker: Bitboard,
+        attacker_path: Bitboard,
         shift: int,
-        attacker_paths: Bitboard,
         first_attacker: bool = True,
     ) -> tuple[Bitboard, Bitboard]:
-        """
-        Returns first potential attacker square in given direction and attacker path if
-        square contains piece actually attacking king
-        """
-        attacker_path = 0
-        attacker = square
-        king_shiftable = KING_MASKS[shift]
-        while (
-            attacker & king_shiftable
-            and (next_attacker := signed_shift(attacker, shift)) & attacker_paths
-        ):
-            attacker = next_attacker
-            attacker_path |= attacker
-
-        if attacker & self.move_boards["OPPOSITE"]:
-            if (
-                any(
-                    attacker & self.move_boards[possible_attacker]
-                    for possible_attacker in POSSIBLE_ATTACKERS[shift]
-                )
-                or first_attacker
-                and attacker_path.bit_count() == 1
-                and attacker
-                & (
-                    self.move_boards["k"]
-                    | self.move_boards["p"] * (shift in PAWN_CAPTURE_SHIFTS_AND_MASKS)
-                )
-            ):
-                return attacker, attacker_path
-        return attacker, 0
+        """Determines whether given attacker is attacking king"""
+        return attacker & self.move_boards["OPPOSITE"] and (
+            any(
+                attacker & self.move_boards[possible_attacker]
+                for possible_attacker in POSSIBLE_ATTACKERS[shift]
+            )
+            or first_attacker
+            and attacker_path.bit_count() == 1
+            and attacker
+            & (
+                self.move_boards["k"]
+                | self.move_boards["p"] * (shift in PAWN_CAPTURE_SHIFTS_AND_MASKS)
+            )
+        )
 
     def generate_knight_attacks(self) -> None:
         """Pre-computes all attacks possible by opposing knights in current position"""
         self.knight_attacks = {}
-        for move in non_slider_moves(self.move_boards["n"], KNIGHT_MASKS):
+        for move in total_non_slider_moves("N", self.move_boards["n"]):
             self.knight_attacks[move.new_board] = (
                 move.old_board if move.new_board not in self.knight_attacks else 0
             )
@@ -429,15 +462,13 @@ class MoveGenerator(ChessBoard):
 
     def square_attacked(self, square: Bitboard) -> bool:
         """Checks if given square attacked by any opposing piece"""
-        square_coords = BITBOARD_SQUARE[square]
-        square_attackers = (
-            self.move_boards["NO KING GAME"] & SLIDER_RAYS[Slider.KING][square]
-        )
-        first_attacker_paths = move_board(
-            square_coords, Slider.KING, blockers=square_attackers
-        )
         return square & self.total_knight_attacks or any(
-            self.checked_attacker_in_direction(square, shift, first_attacker_paths)[1]
+            self.is_attacker_in_direction(
+                *king_attacker_and_path_in_direction(
+                    shift, square, self.move_boards["NO KING GAME"]
+                ),
+                shift,
+            )
             for shift in KING_SHIFTS
         )
 
@@ -459,8 +490,8 @@ class MoveGenerator(ChessBoard):
     def generate_pseudo_legal_moves(self) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for all pieces in current board state"""
         # Non-slider moves
-        for piece, masks in NON_SLIDER_PIECES_AND_MASKS:
-            yield from non_slider_moves(self.move_boards[piece], masks, piece)
+        for non_slider in NON_SLIDERS:
+            yield from total_non_slider_moves(non_slider, self.move_boards[non_slider])
 
         # Generate remaining moves
         for move_func, piece in self.move_functions_and_pieces:
@@ -468,14 +499,10 @@ class MoveGenerator(ChessBoard):
 
     def slider_moves(self, slider, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for given slider"""
-        for i in range(piece_bitboard.bit_length()):
-            piece_mask = 1 << i
-            if piece_mask & piece_bitboard:
-                blockers = self.move_boards["GAME"] & SLIDER_RAYS[slider][piece_mask]
-                moves_board = SLIDER_MOVES[slider][piece_mask][blockers]
-                for j in range(moves_board.bit_length()):
-                    if (moved_board := 1 << j) & moves_board:
-                        yield PseudoMove(piece_mask, moved_board)
+        for piece_mask in bitboard_piece_masks(piece_bitboard):
+            yield from SLIDER_MOVES[slider][piece_mask][
+                self.move_boards["GAME"] & SLIDER_RAYS[slider][piece_mask]
+            ]
 
     def queen_moves(self, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for queen piece"""
@@ -484,11 +511,11 @@ class MoveGenerator(ChessBoard):
 
     def rook_moves(self, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for rook piece"""
-        yield from self.slider_moves(Slider.ROOK, piece_bitboard)
+        yield from self.slider_moves("R", piece_bitboard)
 
     def bishop_moves(self, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for bishop piece"""
-        yield from self.slider_moves(Slider.BISHOP, piece_bitboard)
+        yield from self.slider_moves("B", piece_bitboard)
 
     def pawn_moves(self, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for pawn piece"""
@@ -496,43 +523,34 @@ class MoveGenerator(ChessBoard):
         single_push = piece_bitboard << 8 & self.move_boards["~GAME"]
         double_push = (single_push & RANKS[2]) << 8 & self.move_boards["~GAME"]
 
-        for i in range(piece_bitboard.bit_length()):
-            piece_mask = 1 << i
-            # Generates moves if pawn exists at bitboard index
-            if piece_mask & piece_bitboard:
-                self.promotion = bool(piece_mask & RANKS[6])
+        for piece_mask in bitboard_piece_masks(piece_bitboard):
+            self.promotion = bool(piece_mask & RANKS[6])
 
-                # Generates all forward push moves
-                if (moved_board := piece_mask << 8) & single_push:
-                    yield from self.promotion_checked_moves(piece_mask, moved_board)
-                    if (moved_board := piece_mask << 16) & double_push:
-                        yield PseudoMove(
-                            piece_mask,
-                            moved_board,
-                            "DOUBLE PUSH",
-                            rotate_bitboard(piece_mask << 8),
-                        )
+            # Generates all forward push moves
+            if (moved_board := piece_mask << 8) & single_push:
+                yield from self.promotion_checked_moves(piece_mask, moved_board)
+                if (moved_board := piece_mask << 16) & double_push:
+                    yield PseudoMove(
+                        piece_mask,
+                        moved_board,
+                        "DOUBLE PUSH",
+                        rotate_bitboard(piece_mask << 8),
+                    )
 
-                # Generates all pawn captures
-                for shift, move_mask in PAWN_CAPTURE_SHIFTS_AND_MASKS.items():
-                    if piece_mask & move_mask:
-                        shifted_piece = piece_mask << shift
-                        if shifted_piece & self.move_boards["OPPOSITE"]:
-                            yield from self.promotion_checked_moves(
-                                piece_mask, shifted_piece
-                            )
-                        elif shifted_piece & self.en_passant_bitboard:
-                            yield PseudoMove(
-                                piece_mask,
-                                shifted_piece,
-                                "EN PASSANT",
-                                (
-                                    capture_bitboard := signed_shift(
-                                        piece_mask, shift - 8
-                                    ),
-                                    self.move_bitboard_to_square(capture_bitboard),
-                                ),
-                            )
+            # Generates all pawn captures
+            for shifted_piece in PAWN_CAPTURE_MOVES[piece_mask]:
+                if shifted_piece & self.move_boards["OPPOSITE"]:
+                    yield from self.promotion_checked_moves(piece_mask, shifted_piece)
+                elif shifted_piece & self.en_passant_bitboard:
+                    yield PseudoMove(
+                        piece_mask,
+                        shifted_piece,
+                        "EN PASSANT",
+                        (
+                            capture_bitboard := shifted_piece >> 8,
+                            self.move_bitboard_to_square(capture_bitboard),
+                        ),
+                    )
 
     def promotion_checked_moves(
         self, old_board: int, new_board: int
