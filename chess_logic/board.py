@@ -34,6 +34,7 @@ FEN_TO_BITBOARD_SQUARE = {
 BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
 
 CASTLING_SYMBOLS = "KQkq"
+CastlingRights = dict[str, list[str]]
 CASTLING_ROOK_MOVES = dict(zip(CASTLING_SYMBOLS, (((7, 7), (7, 5)), ((7, 0), (7, 3)))))
 CASTLING_ROOK_MOVES |= {
     symbol.lower(): tuple(map(lambda square: (square[0] - 7, square[1]), squares))
@@ -45,11 +46,12 @@ ROOK_SQUARES_VOIDING_CASTLING = {
 
 
 def void_castling_by_rook(
-    castling_rights: list[str], rook_square: Coord
+    castling_rights: list[str], rook_square: Coord, lost_castling_rights: list[str]
 ) -> Optional[str]:
     """Removes castling right voided by rook move/capture if any"""
     if (right := ROOK_SQUARES_VOIDING_CASTLING.get(rook_square)) in castling_rights:
         castling_rights.remove(right)
+        lost_castling_rights.append(right)
 
 
 UNSIGN_MASK = (1 << 64) - 1
@@ -115,7 +117,7 @@ class BoardMetadata:
     def fen_metadata(self) -> str:
         """Returns fen representation of metadata"""
         self.fen_castling = (
-            "".join(sum(rights, []))
+            "".join(sorted(sum(rights, [])))
             if any(rights := self.side_castling_rights.values())
             else "-"
         )
@@ -134,15 +136,22 @@ class BoardMetadata:
         en_passant_bitboard: Bitboard,
         moved_piece: str,
         captured_piece: Optional[str],
-    ) -> None:
+    ) -> CastlingRights:
         """Updates board metadata after move"""
         # Updates castling rights
+        castling_rights_lost = {side: [] for side in SIDES}
         if next_side_castling_rights := self.side_castling_rights[self.next_side]:
+            next_side_castling_rights_lost = castling_rights_lost[self.next_side]
             match moved_piece.upper():
                 case "K":
+                    next_side_castling_rights_lost.extend(next_side_castling_rights)
                     next_side_castling_rights.clear()
                 case "R":
-                    void_castling_by_rook(next_side_castling_rights, old_square)
+                    void_castling_by_rook(
+                        next_side_castling_rights,
+                        old_square,
+                        next_side_castling_rights_lost,
+                    )
 
         # Updates remaining metadata
         self.next_side = OPPOSITE_SIDE[self.next_side]
@@ -156,7 +165,26 @@ class BoardMetadata:
 
         # Removes castling right of new side to move if relevant rook just captured
         if captured_piece is not None and captured_piece.upper() == "R":
-            void_castling_by_rook(self.side_castling_rights[self.next_side], new_square)
+            void_castling_by_rook(
+                self.side_castling_rights[self.next_side],
+                new_square,
+                castling_rights_lost[self.next_side],
+            )
+        return castling_rights_lost
+
+    def undo_metadata_update(
+        self,
+        old_half_move_clock: int,
+        old_en_passant_bitboard: Bitboard,
+        castling_rights_lost: CastlingRights,
+    ) -> None:
+        """Undos update board metadata after move"""
+        self.half_move_clock = old_half_move_clock
+        self.move_number -= self.next_side == "WHITE"
+        self.next_side = OPPOSITE_SIDE[self.next_side]
+        self.en_passant_bitboard = old_en_passant_bitboard
+        for side, rights_lost in castling_rights_lost.items():
+            self.side_castling_rights[side].extend(rights_lost)
 
 
 class ChessBoard(BoardMetadata):

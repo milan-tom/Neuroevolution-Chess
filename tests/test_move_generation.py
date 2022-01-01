@@ -16,24 +16,25 @@ def moved_chess_state(chess, move) -> Chess:
     return deepcopy(chess).move_piece(move)
 
 
-def num_moves(depth, chess=Chess()) -> int:
+def num_moves(depth, chess, move):
+    """Returns total number of moves after performing move, subsequently undoing move"""
+    performed_move = chess.move_piece(move)
+    total = not chess.game_over and perft(depth - 1, chess)
+    chess.undo_move(performed_move)
+    return total
+
+
+def perft(depth, chess=Chess()) -> int:
     """Returns total number of moves at given depth from given position"""
     if depth == 1:
         return len(chess.current_legal_moves)
-    return sum(
-        num_moves(depth - 1, moved)
-        for move in chess.current_legal_moves
-        if not (moved := moved_chess_state(chess, move)).game_over
-    )
+    return sum(num_moves(depth, chess, move) for move in chess.current_legal_moves)
 
 
 def divide(depth, chess=Chess()) -> Iterator[tuple[str, int]]:
-    """
-    Yields move and total number of moves from that move at given depth for each legal
-    move in current position
-    """
+    """Divides perft into each available legal move in current position"""
     for move in chess.current_legal_moves:
-        yield str(move), num_moves(depth - 1, moved_chess_state(chess, move))
+        yield str(move), num_moves(depth, chess, move)
 
 
 test_data_path = path.join(path.dirname(__file__), "move_generation_test_data.json")
@@ -41,15 +42,23 @@ with open(test_data_path, encoding="utf-8") as test_data_file:
     test_data = json.load(test_data_file)
 
 
+@pytest.mark.parametrize("fen, chess", zip(*[test_data] * 2), indirect=["chess"])
+def test_undo_move(fen, chess):
+    """Tests that making and undoing legal moves returns chess state to same position"""
+    for move in chess.current_legal_moves:
+        chess.undo_move(chess.move_piece(move))
+        assert chess.fen == fen
+
+
 @pytest.mark.parametrize("chess, test_case_data", test_data.items(), indirect=["chess"])
 class TestMoveGeneration:
-    """Stores all tests using data from above test data JSON file"""
+    """Stores all tests using data from test data JSON file with above parameters"""
 
     # pylint: disable=no-self-use
 
     def test_move_generation(self, chess, test_case_data) -> None:
         """Tests that correct moves are generated in various positions"""
-        assert set(test_case_data.keys()) == set(map(str, chess.current_legal_moves))
+        assert set(test_case_data) == set(map(str, chess.current_legal_moves))
 
     def test_number_of_moves_generated(self, chess, test_case_data) -> None:
         """Tests correct number of moves generated at depth 3 from various positions"""
