@@ -2,7 +2,7 @@
 
 from functools import reduce
 from operator import itemgetter, or_
-from typing import Any, Iterator, NamedTuple, Optional
+from typing import Any, Callable, Iterator, NamedTuple, Optional
 
 from chess_logic.board import (
     Bitboard,
@@ -231,15 +231,24 @@ KNIGHT_FORWARD_MASKS = {
 KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
     -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
 }
-PAWN_CAPTURE_SHIFTS_AND_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
+PAWN_CAPTURE_MASKS = {7: ~FILES[0], 9: ~FILES[7]}
 REMAINING_PIECES = [piece for piece in STANDARD_PIECES if piece not in "KN"]
 
 
-def non_slider_new_boards(masks: dict[int, Bitboard]) -> dict[Bitboard, list[Bitboard]]:
+def non_slider_moves(
+    masks: dict[int, Bitboard],
+    context_flag: Optional[str] = None,
+    context_data_func: Callable[[Bitboard], Any] = lambda piece_mask: None,
+) -> dict[Bitboard, list[Bitboard]]:
     """Returns dictionary mapping of squares to list of new squares reachable"""
     return {
         piece_mask: [
-            signed_shift(piece_mask, shift)
+            PseudoMove(
+                piece_mask,
+                signed_shift(piece_mask, shift),
+                context_flag,
+                context_data_func(piece_mask),
+            )
             for shift, mask in masks.items()
             if piece_mask & mask
         ]
@@ -248,15 +257,15 @@ def non_slider_new_boards(masks: dict[int, Bitboard]) -> dict[Bitboard, list[Bit
 
 
 NON_SLIDER_PIECE_MOVES = {
-    non_slider: {
-        piece_mask: [
-            PseudoMove(piece_mask, new_board, non_slider) for new_board in new_boards
-        ]
-        for piece_mask, new_boards in non_slider_new_boards(masks).items()
-    }
-    for non_slider, masks in zip(NON_SLIDERS, (KING_MASKS, KNIGHT_MASKS))
+    non_slider: non_slider_moves(masks, non_slider)
+    for non_slider, masks in zip(
+        list(NON_SLIDERS) + ["P SINGLE PUSH", "P CAPTURE"],
+        (KING_MASKS, KNIGHT_MASKS, {8: sum(RANKS[1:7])}, PAWN_CAPTURE_MASKS),
+    )
 }
-PAWN_CAPTURE_MOVES = non_slider_new_boards(PAWN_CAPTURE_SHIFTS_AND_MASKS)
+NON_SLIDER_PIECE_MOVES["P DOUBLE PUSH"] = non_slider_moves(
+    {16: RANKS[1]}, "DOUBLE PUSH", lambda piece_mask: rotate_bitboard(piece_mask << 8)
+)
 
 
 def total_non_slider_moves(non_slider: str, piece_bitboard: Bitboard):
@@ -447,7 +456,7 @@ class MoveGenerator(ChessBoard):
             and attacker
             & (
                 self.move_boards["k"]
-                | self.move_boards["p"] * (shift in PAWN_CAPTURE_SHIFTS_AND_MASKS)
+                | self.move_boards["p"] * (shift in PAWN_CAPTURE_MASKS)
             )
         )
 
@@ -519,45 +528,45 @@ class MoveGenerator(ChessBoard):
 
     def pawn_moves(self, piece_bitboard: Bitboard) -> Iterator[PseudoMove]:
         """Yields all pseudo-legal moves for pawn piece"""
-        # Generates possible push move bitboards for all pawns at once
-        single_push = piece_bitboard << 8 & self.move_boards["~GAME"]
-        double_push = (single_push & RANKS[2]) << 8 & self.move_boards["~GAME"]
+        single_mask = self.move_boards["~GAME"] >> 8
+        if promotable := piece_bitboard & RANKS[6]:
+            yield from self.promotion_moves(promotable, single_mask)
+            piece_bitboard &= ~promotable
 
-        for piece_mask in bitboard_piece_masks(piece_bitboard):
-            self.promotion = bool(piece_mask & RANKS[6])
+        single_push = piece_bitboard & single_mask
+        yield from total_non_slider_moves("P SINGLE PUSH", single_push)
+        yield from total_non_slider_moves(
+            "P DOUBLE PUSH", (single_push & RANKS[1]) & self.move_boards["~GAME"] >> 16
+        )
 
-            # Generates all forward push moves
-            if (moved_board := piece_mask << 8) & single_push:
-                yield from self.promotion_checked_moves(piece_mask, moved_board)
-                if (moved_board := piece_mask << 16) & double_push:
-                    yield PseudoMove(
-                        piece_mask,
-                        moved_board,
-                        "DOUBLE PUSH",
-                        rotate_bitboard(piece_mask << 8),
-                    )
+        capturable = self.move_boards["OPPOSITE"] | self.en_passant_bitboard
+        for move in total_non_slider_moves(
+            "P CAPTURE", piece_bitboard & ((capturable >> 7) | (capturable >> 9))
+        ):
+            if (shifted_piece := move.new_board) & self.move_boards["OPPOSITE"]:
+                yield move
+            elif shifted_piece & self.en_passant_bitboard:
+                yield move._replace(
+                    context_flag="EN PASSANT",
+                    context_data=(
+                        capture_bitboard := shifted_piece >> 8,
+                        self.move_bitboard_to_square(capture_bitboard),
+                    ),
+                )
 
-            # Generates all pawn captures
-            for shifted_piece in PAWN_CAPTURE_MOVES[piece_mask]:
-                if shifted_piece & self.move_boards["OPPOSITE"]:
-                    yield from self.promotion_checked_moves(piece_mask, shifted_piece)
-                elif shifted_piece & self.en_passant_bitboard:
-                    yield PseudoMove(
-                        piece_mask,
-                        shifted_piece,
-                        "EN PASSANT",
-                        (
-                            capture_bitboard := shifted_piece >> 8,
-                            self.move_bitboard_to_square(capture_bitboard),
-                        ),
-                    )
-
-    def promotion_checked_moves(
-        self, old_board: int, new_board: int
+    def promotion_moves(
+        self, promotable: Bitboard, single_mask: Bitboard
     ) -> Iterator[PseudoMove]:
+        """Yields all pseudo-legal moves for pawn piece"""
+        for move in total_non_slider_moves("P SINGLE PUSH", promotable & single_mask):
+            yield from self.promotion_options(move)
+
+        for move in total_non_slider_moves("P CAPTURE", promotable):
+            if move.new_board & self.move_boards["OPPOSITE"]:
+                yield from self.promotion_options(move)
+
+    def promotion_options(self, move: PseudoMove) -> Iterator[PseudoMove]:
         """Ensures moves yielded with correct options and flags if promoting pawn"""
-        if self.promotion:
-            for piece in PROMOTION_PIECES[self.next_side]:
-                yield PseudoMove(old_board, new_board, "PROMOTION", piece)
-        else:
-            yield PseudoMove(old_board, new_board)
+        move = move._replace(context_flag="PROMOTION")
+        for piece in PROMOTION_PIECES[self.next_side]:
+            yield move._replace(context_data=piece)
