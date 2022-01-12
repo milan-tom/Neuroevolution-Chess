@@ -1,7 +1,5 @@
 """Contains all tests for move generation"""
 
-
-from copy import deepcopy
 from os import path
 from typing import Iterator
 import json
@@ -9,11 +7,6 @@ import json
 import pytest
 
 from chess_logic.core_chess import Chess
-
-
-def moved_chess_state(chess, move) -> Chess:
-    """Returns chess state after performing move"""
-    return deepcopy(chess).move_piece(move)
 
 
 def num_moves(depth, chess, move):
@@ -43,7 +36,7 @@ with open(test_data_path, encoding="utf-8") as test_data_file:
 
 
 @pytest.mark.parametrize("fen, chess", zip(*[test_data] * 2), indirect=["chess"])
-def test_undo_move(fen, chess):
+def test_undo_move(fen: str, chess: Chess):
     """Tests that making and undoing legal moves returns chess state to same position"""
     for move in chess.current_legal_moves:
         chess.undo_move(chess.move_piece(move))
@@ -56,10 +49,14 @@ class TestMoveGeneration:
 
     # pylint: disable=no-self-use
 
-    def test_move_generation(self, chess, test_case_data) -> None:
+    def test_move_generation(
+        self, chess: Chess, test_case_data: dict[str, int]
+    ) -> None:
         """Tests that correct moves are generated in various positions"""
         assert set(test_case_data) == set(map(str, chess.current_legal_moves))
 
-    def test_number_of_moves_generated(self, chess, test_case_data) -> None:
+    def test_number_of_moves_generated(
+        self, chess: Chess, test_case_data: dict[str, int]
+    ) -> None:
         """Tests correct number of moves generated at depth 3 from various positions"""
         assert all(test_case_data[move] == number for move, number in divide(3, chess))
