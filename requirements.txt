@@ -1,6 +1,5 @@
 black == 21.12b0
 pre_commit == 2.16.0
-pydantic==1.8.2
 pygame == 2.1.0
 pygame-widgets == 1.0.0
 pylint_runner == 0.6.0

@@ -3,12 +3,10 @@ Handles all logic concerning initialising a chess state, generating moves from t
 state, and executing them on the state
 """
 
-from dataclasses import astuple
+from dataclasses import astuple, dataclass
 from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
-
-from pydantic.dataclasses import dataclass
 
 Bitboard = int
 Coord = Sequence[int]
@@ -90,15 +88,13 @@ def rotate_bitboard(board: Bitboard) -> Bitboard:
 class BoardMetadata:
     """Dataclass storing metadata associated with a board state"""
 
-    # pylint: disable=attribute-defined-outside-init
-
     next_side: str
     fen_castling: str
     fen_en_passant_square: str
-    half_move_clock: int
-    move_number: int
+    half_move_clock: str | int
+    move_number: str | int
 
-    def __post_init_post_parse__(self) -> None:
+    def __post_init__(self) -> None:
         """Alters fen values  to represent data in more suitable forms"""
         self.next_side = SIDES["wb".index(self.next_side)]
         self.side_castling_rights = {
@@ -112,6 +108,9 @@ class BoardMetadata:
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
         if self.en_passant_bitboard and self.next_side == "BLACK":
             self.en_passant_bitboard = rotate_bitboard(self.en_passant_bitboard)
+        self.half_move_clock, self.move_number = map(
+            int, (self.half_move_clock, self.move_number)
+        )
 
     @property
     def fen_metadata(self) -> str:
