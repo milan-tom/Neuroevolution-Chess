@@ -8,6 +8,8 @@ from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
 
+from numpy import binary_repr
+
 Bitboard = int
 Coord = Sequence[int]
 
@@ -17,8 +19,11 @@ OPPOSITE_SIDE = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
 PIECE_SIDE = {piece: SIDES[piece.islower()] for piece in PIECES}
 
 ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
-SQUARE_BITBOARD: dict[Coord, Bitboard] = {
-    square: 1 << (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
+SQUARE_BITBOARD_INDEX = {
+    square: (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
+}
+SQUARE_BITBOARD = {
+    square: 1 << index for square, index in SQUARE_BITBOARD_INDEX.items()
 }
 BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
 
@@ -81,7 +86,7 @@ def unsign_bitboard(board: Bitboard) -> Bitboard:
 
 def rotate_bitboard(board: Bitboard) -> Bitboard:
     """Reverses single bitboard bitwise"""
-    return int(bin(unsign_bitboard(board)).lstrip("0b").zfill(64)[::-1], 2)
+    return int(binary_repr(unsign_bitboard(board), 64)[::-1], 2)
 
 
 @dataclass

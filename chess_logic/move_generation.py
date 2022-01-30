@@ -19,6 +19,7 @@ from chess_logic.board import (
     ROWS_AND_COLUMNS,
     SIDES,
     SQUARE_BITBOARD,
+    SQUARE_BITBOARD_INDEX,
 )
 
 Bitboards = dict[str, Bitboard]
@@ -294,6 +295,13 @@ class Move(NamedTuple):
             move
             if self.context_flag != "PROMOTION"
             else move + self.context_data.lower()
+        )
+
+    def __int__(self):
+        """Returns integer representation of move"""
+        return (
+            63 * SQUARE_BITBOARD_INDEX[self.old_square]
+            + SQUARE_BITBOARD_INDEX[self.new_square]
         )
 
 
