@@ -34,9 +34,9 @@ PROMOTION_PIECES = {
     side: "".join(map(PIECE_OF_SIDE[side].get, STANDARD_PIECES[1:-1])) for side in SIDES
 }
 
-RANK0 = 2 ** 8 - 1
+RANK0 = 2**8 - 1
 RANKS = [RANK0] + [RANK0 << i for i in range(8, 64, 8)]
-FILE0 = sum(2 ** i for i in range(0, 64, 8))
+FILE0 = sum(2**i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
 SLIDERS = "RB"
