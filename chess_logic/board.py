@@ -133,6 +133,20 @@ class BoardMetadata:
         metadata = tuple(map(str, astuple(self)))
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
+    @property
+    def int_metadata(self) -> list[int]:
+        """Returns list containing integer representations of metadata"""
+        return [
+            SIDES.index(self.next_side),
+            *[
+                bool(right in self.side_castling_rights[PIECE_SIDE[right]])
+                for right in CASTLING_SYMBOLS
+            ],
+            self.en_passant_bitboard,
+            self.half_move_clock,
+            self.move_number,
+        ]
+
     def update_metadata(
         self,
         old_square: Coord,

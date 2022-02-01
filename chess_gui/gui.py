@@ -8,6 +8,7 @@ from functools import partial
 from itertools import cycle, product
 from operator import mul, sub
 from time import process_time
+from threading import Thread
 from typing import Callable, Iterable, Optional
 import os
 
@@ -16,16 +17,24 @@ import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from chess_logic.board import Coord, PIECE_SIDE, PIECES, ROWS_AND_COLUMNS, STARTING_FEN
+from chess_ai.neuroevolutionary_engine import ChessEngine
+from chess_logic.board import (
+    Coord,
+    PIECE_SIDE,
+    PIECES,
+    ROWS_AND_COLUMNS,
+    SIDES,
+    STARTING_FEN,
+)
 from chess_logic.core_chess import Chess, Move
 from chess_logic.move_generation import PIECE_OF_SIDE
 
 # Instructs OS to open window slightly offset so all of it fits on the screen
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
-# Imports all piece images (source:
-# https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces)
+# Imports all piece images and player icons
 image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
+load_image = lambda side, name: pygame.image.load(image_path.format(side, name))
 PIECE_IMAGES = {
     piece: (
         piece_image := pygame.image.load(
@@ -34,10 +43,17 @@ PIECE_IMAGES = {
     ).subsurface(piece_image.get_bounding_rect())
     for piece in PIECES
 }
+PLAYERS = "HUMAN", "AI"
+PLAYER_ICONS = {
+    player_type: {side: load_image(side, player_type) for side in SIDES}
+    for player_type in PLAYERS
+}
 
 # Initialises pygame components and sets certain GUI parameters
 pygame.init()
 GAME_FONT = pygame.freetype.SysFont("Verdana", 0)
+SCREEN_WIDTH, SCREEN_HEIGHT = DISPLAY_SIZE = 1536, 864
+DEFAULT_BUTTON_COLOUR = (0, 255, 0)
 
 
 def rect_range(rect: pygame.Rect):
@@ -52,8 +68,7 @@ class Design(pygame.Surface):
         """Initialises design surface and relevant attributes"""
         # Initialises parent class to creates dummy window for implementing design,
         # enabling scaling to any screen
-        self.width, self.height = self.resolution = 1536, 864
-        super().__init__(self.resolution)
+        super().__init__(DISPLAY_SIZE)
 
         self.square_size = 108  # Size of square in pixels to fill dummy window's height
         # Stores colour codes for light and dark squares, respectively
@@ -61,7 +76,7 @@ class Design(pygame.Surface):
 
         # Creates subsurface for area of design window not covered by board
         board = self.square_size * 8, 0
-        self.non_board_area = self.subsurface(*board, *map(sub, self.resolution, board))
+        self.non_board_area = self.subsurface(*board, *map(sub, DISPLAY_SIZE, board))
 
     def dimension_to_pixel(self, dimension: int) -> int:
         """Scales row/column to pixel coordinate"""
@@ -115,19 +130,12 @@ class ChessGUI:
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square: Optional[Coord] = None
         self.running = True
-        self.default_button_colour = (0, 255, 0)
 
-        # Initialises chess object to manage chess rules for GUI
+        # Initialises chess object (manages chess rules for GUI) and engine-related data
         self.chess = Chess(fen)
-
-        # Scales piece images to size of GUI
-        self.piece_images = {
-            piece: pygame.transform.scale(
-                piece_image,
-                self.scale_coords(piece_image.get_size()),
-            )
-            for piece, piece_image in PIECE_IMAGES.items()
-        }
+        self.engine = ChessEngine()
+        self.current_players = dict(zip(SIDES, PLAYERS))
+        self.best_engine_move = None
 
         # Draws the board automatically
         self.draw_board()
@@ -135,40 +143,72 @@ class ChessGUI:
     def update(self) -> None:
         """Scales dummy design window to actual screen size and renders changes"""
         pygame.transform.smoothscale(self.design, self.display.get_size(), self.display)
-        pygame.display.flip()
 
-    def scale_coords(self, coords: Iterable[int]) -> list[int]:
+    def scale_coords(
+        self,
+        coords: Iterable[int],
+        initial_resolution=DISPLAY_SIZE,
+        final_resolution=None,
+    ) -> list[int]:
         """Generates coordinates after design coordinates scaled to display"""
+        if final_resolution is None:
+            final_resolution = self.display.get_size()
         return [
-            coord * display_size // design_size
-            for coord, design_size, display_size in zip(
-                coords, cycle(self.design.get_size()), cycle(self.display.get_size())
+            int(coord * final_size / initial_size)
+            for coord, initial_size, final_size in zip(
+                coords, cycle(initial_resolution), cycle(final_resolution)
             )
         ]
+
+    def rect_scaled_img(self, img: pygame.Surface, rect: pygame.Rect) -> pygame.Surface:
+        """Returns image after scaling it to fit inside Pygame 'Rect' object"""
+        return pygame.transform.scale(
+            img,
+            self.scale_coords(*[img.get_size()] * 2, map(lambda x: 0.7 * x, rect[2:])),
+        )
+
+    def scale_widget(
+        self, widget: pygame_widgets.widget.WidgetBase, initial: Coord = DISPLAY_SIZE
+    ) -> None:
+        """Scales the x, y, width, and height attributes of widget to display size"""
+        # pylint: disable=protected-access
+        widget._x, widget._y, widget._width, widget._height = self.scale_coords(
+            (widget._x, widget._y, widget._width, widget._height),
+            initial,
+        )
 
     def get_square_range(self, square: Coord) -> Iterable[Coord]:
         """Returns all scaled coordinates within specified square"""
         return rect_range(self.scale_coords(self.design.get_square_rect(square)))
 
-    def draw_button_at_square(
+    def draw_button_at_rect(
         self,
-        square: Coord,
+        rect: pygame.Rect,
+        image: Optional[pygame.Surface],
         func: Callable,
-        colour: tuple[int, int, int] = None,
-        image: Optional[pygame.Surface] = None,
-    ) -> None:
-        """Draws button at given square"""
-        if colour is None:
-            colour = self.default_button_colour
-        if image is None:
-            image = self.piece_images.get(self.chess.get_piece_at_square(square))
-        Button(
-            self.display,
-            *self.scale_coords(self.design.get_square_rect(square)),
+        colour: tuple[int, int, int] = DEFAULT_BUTTON_COLOUR,
+    ):
+        """Draws button within specified Pygame 'Rect' object"""
+        if image is not None:
+            image = self.rect_scaled_img(image, rect)
+        button = Button(
+            self.design,
+            *rect,
             inactiveColour=colour,
             image=image,
             onRelease=func,
-        ).draw()
+        )
+        button.draw()
+        self.update()
+        self.scale_widget(button)
+
+    def draw_button_at_square(
+        self, square: Coord, image: Optional[pygame.Surface] = None, **kwargs
+    ) -> None:
+        """Draws button at given square"""
+        if image is None:
+            image = PIECE_IMAGES.get(self.chess.get_piece_at_square(square))
+        self.draw_button_at_rect(self.design.get_square_rect(square), image, **kwargs)
 
     def show_text(
         self,
@@ -191,7 +231,6 @@ class ChessGUI:
         GAME_FONT.render_to(
             self.design.non_board_area, text_rect, text, "white", size=size
         )
-        self.update()
 
     def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
@@ -210,29 +249,51 @@ class ChessGUI:
                     func=partial(self.show_moves, square),
                     colour=colour,
                 )
-        pygame.display.flip()
+
+    def draw_players(self) -> None:
+        """Draws icons of current player types integrated into button to flip type"""
+        for (side, player), shift_direction in zip(
+            self.current_players.items(), [-1, 1]
+        ):
+            player_icon_rect = pygame.Rect(0, 0, 200, 200)
+            player_icon_rect.center = self.design.non_board_area.get_rect().center
+            player_icon_rect.centerx += (
+                125 * shift_direction + self.design.non_board_area.get_offset()[0]
+            )
+            self.draw_button_at_rect(
+                rect=player_icon_rect,
+                image=PLAYER_ICONS[player][side],
+                func=partial(self.switch_player, side),
+                colour="white",
+            )
 
     def draw_board(self) -> None:
         """Displays the current state of the board"""
         self.design.fill("black")
         pygame_widgets.WidgetHandler.getWidgets().clear()
         self.design.draw_board_squares()
-        self.update()
         if self.chess.game_over:
             self.show_text(self.chess.game_over_message)
+        else:
+            self.draw_players()
         self.draw_pieces()
+
+    def switch_player(self, side: str) -> None:
+        """Switches type of player playing for side whose button clicked"""
+        self.current_players[side] = PLAYERS[
+            (PLAYERS.index(self.current_players[side]) + 1) % 2
+        ]
+        self.draw_board()
+        self.check_engine_move()
 
     def show_moves(self, old_square: Coord) -> None:
         """Display move buttons for clicked piece (double clicking clears moves)"""
-        if self.selected_square is not None:
-            self.draw_board()
+        self.draw_board()
 
         if self.selected_square == old_square:
             self.selected_square = None
         else:
-            self.draw_pieces()
             self.selected_square = old_square
-
             legal_moves = self.chess.legal_moves_from_square(old_square)
             if legal_moves and legal_moves[0].context_flag == "PROMOTION":
                 for promotion_set_i in range(0, len(legal_moves), 4):
@@ -249,33 +310,65 @@ class ChessGUI:
 
     def show_promotion_moves(self, promotion_moves: list[Move]):
         """Displays all choices for promoting pawn"""
+        self.draw_board()
         for widget in pygame_widgets.WidgetHandler.getWidgets():
             widget.setOnRelease(lambda *args: None)
         self.show_text("Choose the promotion piece:", rel_y=0.075)
         for move_i, move in enumerate(promotion_moves):
             self.draw_button_at_square(
                 square=(1, 9.15 + move_i),
+                image=PIECE_IMAGES[move.context_data],
                 func=partial(self.move_piece, move),
-                image=self.piece_images[move.context_data],
             )
+
+    def engine_move(self) -> None:
+        """Gets the best engine move for the current side"""
+        inital_side = self.chess.next_side
+        best_move = self.engine.best_move(self.chess)
+        # Verifies state hasn't changed since move request initiated
+        if (
+            self.chess.next_side == inital_side
+            and self.current_players[inital_side] == "AI"
+        ):
+            self.best_engine_move = best_move
+
+    def check_engine_move(self) -> None:
+        """Checks if it is engine's turn to move, starting move search thread if so"""
+        if (
+            not (self.chess.game_over or self.engine.thinking)
+            and self.current_players[self.chess.next_side] == "AI"
+        ):
+            Thread(target=self.engine_move).start()
 
     def move_piece(self, move: Move) -> None:
         """Moves piece from one square to another and updates GUI accordingly"""
         self.chess.move_piece(move)
         self.draw_board()
+        self.check_engine_move()
 
     def mainloop(self, time_limit: int | float = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
         start_time = process_time()
+        old_resolution = self.display.get_size()
         while self.running and (process_time() - start_time) < time_limit:
             # pylint: disable=superfluous-parens
             for event in (events := pygame.event.get()):
-                if event.type == pygame.QUIT:
-                    self.running = False
+                match event.type:
+                    case pygame.VIDEORESIZE:
+                        for widget in pygame_widgets.WidgetHandler.getWidgets():
+                            self.scale_widget(widget, old_resolution)
+                        old_resolution = self.display.get_size()
+                        self.draw_board()
+                    case pygame.QUIT:
+                        self.running = False
 
             pygame_widgets.update(events)
             pygame.display.update()
+
+            if self.best_engine_move is not None:
+                self.move_piece(self.best_engine_move)
+                self.best_engine_move = None
 
 
 if __name__ == "__main__":
