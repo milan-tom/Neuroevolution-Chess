@@ -5,4 +5,4 @@ pygame == 2.1.2
 pygame-widgets == 1.0.0
 pylint_runner == 0.6.0
 pytest == 6.2.5
-tensorflow == 2.8.0-rc1
+tensorflow == 2.8.0
