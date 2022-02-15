@@ -44,11 +44,9 @@ class Chess(MoveGenerator):
         self.game_over = True
         if not self.current_legal_moves:
             if self.is_check:
-                self.is_checkmate = True
                 self.winner = OPPOSITE_SIDE[self.next_side]
                 self.game_over_message = f"{self.winner.title()} wins by checkmate"
             else:
-                self.is_stalemate = True
                 self.game_over_message = "Draw by stalemate"
         elif self.half_move_clock >= 100:
             self.fifty_move_rule_reached = True

@@ -89,6 +89,11 @@ def rotate_bitboard(board: Bitboard) -> Bitboard:
     return int(binary_repr(unsign_bitboard(board), 64)[::-1], 2)
 
 
+def swap_halves(data: list, half_length: int) -> list:
+    """Swaps the two halves of a list given half length"""
+    return data[half_length:] + data[half_length:]
+
+
 @dataclass
 class BoardMetadata:
     """Dataclass storing metadata associated with a board state"""
@@ -136,15 +141,18 @@ class BoardMetadata:
     @property
     def int_metadata(self) -> list[int]:
         """Returns list containing integer representations of metadata"""
+        castling_rights = [
+            bool(right in self.side_castling_rights[PIECE_SIDE[right]])
+            for right in CASTLING_SYMBOLS
+        ]
         return [
-            SIDES.index(self.next_side),
-            *[
-                bool(right in self.side_castling_rights[PIECE_SIDE[right]])
-                for right in CASTLING_SYMBOLS
-            ],
+            *(
+                castling_rights
+                if self.next_side == "WHITE"
+                else swap_halves(castling_rights, 2)
+            ),
             self.en_passant_bitboard,
             self.half_move_clock,
-            self.move_number,
         ]
 
     def update_metadata(
