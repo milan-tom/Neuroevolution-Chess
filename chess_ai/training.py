@@ -38,14 +38,14 @@ def simulate_match(
 class Trainer:
     """Trains value network for MCTS using NEAT"""
 
-    def __init__(self, config_file):
+    def __init__(self) -> None:
         # Load configuration.
         self.config = neat.Config(
             neat.DefaultGenome,
             neat.DefaultReproduction,
             neat.DefaultSpeciesSet,
             neat.DefaultStagnation,
-            config_file,
+            path.join(path.dirname(__file__), "config-feedforward"),
         )
         self.best = self.best_genome = self.population = None
 
@@ -83,5 +83,5 @@ class Trainer:
 
 
 if __name__ == "__main__":
-    trainer = Trainer(path.join(path.dirname(__file__), "config-feedforward"))
+    trainer = Trainer()
     trainer.run()
