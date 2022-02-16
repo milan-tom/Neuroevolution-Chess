@@ -98,11 +98,14 @@ class MCTS:
             path = deque((node.move,))
             while (node := node.parent).parent is not None:
                 path.appendleft(node.move)
-            return deque(map(self.chess_state.move_piece, path))
+            return deque(
+                map(lambda move: self.chess_state.move_piece(move, update=False), path)
+            )
         return deque()
 
     def expand_node(self, node: Node) -> None:
         """Adds all child nodes to given node"""
+        self.chess_state.update_board_state()
         for move in self.chess_state.current_legal_moves:
             node.children.append(Node(node, move))
 

@@ -59,7 +59,7 @@ class Chess(MoveGenerator):
         """Returns all legal moves from specific square on board"""
         return [move for move in self.current_legal_moves if move.old_square == square]
 
-    def move_piece(self, move: Move) -> Chess:
+    def move_piece(self, move: Move, update: bool = True) -> Chess:
         """Moves piece at given square to new square, returning new chess state"""
         if captured_piece := self.get_piece_at_square(move.new_square):
             self.remove_bitboard_square(captured_piece, move.new_square)
@@ -94,7 +94,8 @@ class Chess(MoveGenerator):
         castling_rights_lost = self.update_metadata(
             *move[:2], en_passant_bitboard, moved_piece, captured_piece
         )
-        self.update_board_state()
+        if update:
+            self.update_board_state()
         return PerformedMove(
             *move,
             captured_piece,
