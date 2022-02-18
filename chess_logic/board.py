@@ -3,7 +3,9 @@ Handles all logic concerning initialising a chess state, generating moves from t
 state, and executing them on the state
 """
 
-from dataclasses import astuple, dataclass
+from collections import deque
+from dataclasses import astuple, dataclass, field
+from functools import partial
 from itertools import product
 from operator import and_, or_
 from typing import Callable, Iterable, Optional, Sequence
@@ -28,6 +30,7 @@ SQUARE_BITBOARD = {
 BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+State = tuple[int | str]
 
 FEN_TO_BITBOARD_SQUARE = {
     f"{file}{8 - rank_i}": SQUARE_BITBOARD[(rank_i, file_i)]
@@ -103,6 +106,9 @@ class BoardMetadata:
     fen_en_passant_square: str
     half_move_clock: str | int
     move_number: str | int
+    previous_states: deque[Optional[State]] = field(
+        default_factory=partial(deque, [None] * 10, maxlen=10), init=False
+    )
 
     def __post_init__(self) -> None:
         """Alters fen values  to represent data in more suitable forms"""
@@ -135,7 +141,7 @@ class BoardMetadata:
             if self.next_side == "BLACK"
             else self.en_passant_bitboard
         ]
-        metadata = tuple(map(str, astuple(self)))
+        metadata = tuple(map(str, astuple(self)[:-1]))
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
     @property
@@ -155,6 +161,11 @@ class BoardMetadata:
             self.half_move_clock,
         ]
 
+    @property
+    def repetition_metadata(self) -> tuple:
+        """Returns tuple containing metadata necessary to check repetition"""
+        return self.next_side, self.side_castling_rights, self.en_passant_bitboard
+
     def update_metadata(
         self,
         old_square: Coord,
@@ -162,13 +173,15 @@ class BoardMetadata:
         en_passant_bitboard: Bitboard,
         moved_piece: str,
         captured_piece: Optional[str],
-    ) -> CastlingRights:
+        previous_state: State,
+    ) -> tuple[CastlingRights, State]:
         """Updates board metadata after move"""
+        moved_piece = moved_piece.upper()
         # Updates castling rights
         castling_rights_lost = {side: [] for side in SIDES}
         if next_side_castling_rights := self.side_castling_rights[self.next_side]:
             next_side_castling_rights_lost = castling_rights_lost[self.next_side]
-            match moved_piece.upper():
+            match moved_piece:
                 case "K":
                     next_side_castling_rights_lost.extend(next_side_castling_rights)
                     next_side_castling_rights.clear()
@@ -184,10 +197,14 @@ class BoardMetadata:
         self.en_passant_bitboard = en_passant_bitboard
         self.half_move_clock = (
             0
-            if moved_piece.upper() == "P" or captured_piece is not None
+            if moved_piece == "P" or captured_piece is not None
             else self.half_move_clock + 1
         )
         self.move_number += self.next_side == "WHITE"
+
+        # Update previous fens for twofold repetition
+        state_lost = self.previous_states[0]
+        self.previous_states.append(previous_state)
 
         # Removes castling right of new side to move if relevant rook just captured
         if captured_piece is not None and captured_piece.upper() == "R":
@@ -196,14 +213,15 @@ class BoardMetadata:
                 new_square,
                 castling_rights_lost[self.next_side],
             )
-        return castling_rights_lost
+        return castling_rights_lost, state_lost
 
     def undo_metadata_update(
         self,
         old_half_move_clock: int,
         old_en_passant_bitboard: Bitboard,
         castling_rights_lost: CastlingRights,
-    ) -> None:
+        state_lost: State,
+    ) -> State:
         """Undos update board metadata after move"""
         self.half_move_clock = old_half_move_clock
         self.move_number -= self.next_side == "WHITE"
@@ -211,6 +229,9 @@ class BoardMetadata:
         self.en_passant_bitboard = old_en_passant_bitboard
         for side, rights_lost in castling_rights_lost.items():
             self.side_castling_rights[side].extend(rights_lost)
+        previous_state = self.previous_states[-1]
+        self.previous_states.appendleft(state_lost)
+        return previous_state
 
 
 class ChessBoard(BoardMetadata):
@@ -227,6 +248,7 @@ class ChessBoard(BoardMetadata):
         """
         fen_positions, *metadata = fen_portions(fen)
         super().__init__(*metadata)
+        self.cached_state = None
         self.fen_positions_to_bitboards(fen_positions)
 
     def fen_positions_to_bitboards(self, fen_positions: str) -> None:
@@ -267,6 +289,13 @@ class ChessBoard(BoardMetadata):
             rows.append(row)
 
         return f"{'/'.join(rows)} {self.fen_metadata}"
+
+    @property
+    def current_state(self) -> None:
+        """Returns representation of current state used for checking repetition"""
+        if self.cached_state is None:
+            self.cached_state = tuple(self.boards.values()) + self.repetition_metadata
+        return self.cached_state
 
     def get_bitboard(self, piece: str) -> Bitboard:
         """Returns integer representing bitboard of given piece"""

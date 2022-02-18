@@ -9,6 +9,7 @@ from chess_logic.board import (
     Coord,
     OPPOSITE_SIDE,
     STARTING_FEN,
+    State,
 )
 from chess_logic.move_generation import Move, MoveGenerator, PIECE_OF_SIDE
 
@@ -25,6 +26,7 @@ class PerformedMove(NamedTuple):
     old_half_move_clock: int
     old_en_passant_bitboard: Bitboard
     castling_rights_lost: CastlingRights
+    state_lost: State
 
 
 class Chess(MoveGenerator):
@@ -36,11 +38,15 @@ class Chess(MoveGenerator):
         self.winner = self.game_over_message = None
         self.update_board_state()
 
-    def update_board_state(self, legal_moves=None) -> None:
+    def update_board_state(
+        self, legal_moves: Optional[tuple[Move]] = None, state: Optional[State] = None
+    ) -> None:
         """Performs necessary updates when board state changed"""
         self.current_legal_moves = (
             legal_moves if legal_moves is not None else self.legal_moves()
         )
+        self.cached_state = state
+
         self.game_over = True
         if not self.current_legal_moves:
             if self.is_check:
@@ -49,11 +55,14 @@ class Chess(MoveGenerator):
             else:
                 self.game_over_message = "Draw by stalemate"
         elif self.half_move_clock >= 100:
-            self.fifty_move_rule_reached = True
             self.game_over_message = "Draw by fifty move rule"
-            self.current_legal_moves = []
+        elif self.current_state in self.previous_states:
+            self.game_over_message = "Draw by twofold repetition"
         else:
             self.game_over = False
+
+        if self.game_over:
+            self.current_legal_moves = []
 
     def legal_moves_from_square(self, square: Coord) -> list[Move]:
         """Returns all legal moves from specific square on board"""
@@ -91,8 +100,12 @@ class Chess(MoveGenerator):
         old_legal_moves = self.current_legal_moves
         old_half_move_clock = self.half_move_clock
         old_en_passant_bitboard = self.en_passant_bitboard
-        castling_rights_lost = self.update_metadata(
-            *move[:2], en_passant_bitboard, moved_piece, captured_piece
+        castling_rights_lost, state_lost = self.update_metadata(
+            *move[:2],
+            en_passant_bitboard,
+            moved_piece,
+            captured_piece,
+            self.current_state,
         )
         if update:
             self.update_board_state()
@@ -103,11 +116,12 @@ class Chess(MoveGenerator):
             old_half_move_clock,
             old_en_passant_bitboard,
             castling_rights_lost,
+            state_lost,
         )
 
     def undo_move(self, performed_move: PerformedMove) -> None:
         """Reverts chess state back to what it was before move"""
-        self.undo_metadata_update(*performed_move[-3:])
+        previous_state = self.undo_metadata_update(*performed_move[-4:])
         self.move_piece_bitboard_square(
             self.get_piece_at_square(performed_move.new_square),
             performed_move.new_square,
@@ -135,4 +149,4 @@ class Chess(MoveGenerator):
                     *reversed(performed_move.context_data),
                 )
 
-        self.update_board_state(performed_move.old_legal_moves)
+        self.update_board_state(performed_move.old_legal_moves, previous_state)
