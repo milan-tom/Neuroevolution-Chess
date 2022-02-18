@@ -48,6 +48,7 @@ class Chess(MoveGenerator):
         self.cached_state = state
 
         self.game_over = True
+        self.winner = None
         if not self.current_legal_moves:
             if self.is_check:
                 self.winner = OPPOSITE_SIDE[self.next_side]

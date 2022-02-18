@@ -49,7 +49,7 @@ class Trainer:
         )
         self.best = self.best_genome = self.population = None
 
-    def run(self) -> None:
+    def run(self, num_generations: int) -> None:
         """Runs NEAT for certain number of generations using provided configuration"""
         # Create the population, which is the top-level object for a NEAT run.
         self.population = neat.Population(self.config)
@@ -64,7 +64,7 @@ class Trainer:
 
         # Run for up to 300 generations.
         population_evaluator = neat.ParallelEvaluator(cpu_count(), self.eval_genome)
-        self.population.run(population_evaluator.evaluate, 300)
+        self.population.run(population_evaluator.evaluate, num_generations)
 
     def eval_genome(self, genome: neat.DefaultGenome, config: neat.Config) -> int:
         """Evaluates individual genome via competition with best genome until now"""
@@ -84,4 +84,4 @@ class Trainer:
 
 if __name__ == "__main__":
     trainer = Trainer()
-    trainer.run()
+    trainer.run(300)

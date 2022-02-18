@@ -51,7 +51,7 @@ class Node:
     def backpropagate(self, reward: int | float) -> None:
         """Feeds reward of simulated node up tree to parent at each level"""
         node = self
-        while node.parent is not None:
+        while node is not None:
             node.reward += reward
             node.visited += 1
             reward *= -1
