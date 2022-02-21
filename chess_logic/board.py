@@ -61,6 +61,7 @@ def void_castling_by_rook(
 
 
 UNSIGN_MASK = (1 << 64) - 1
+MAX_BITBOARD = 1 << 64 - 1
 
 
 def fen_portions(fen: str) -> list[str]:
@@ -85,6 +86,11 @@ def unsign_bitboard(board: Bitboard) -> Bitboard:
     integers)
     """
     return board & UNSIGN_MASK
+
+
+def normalize_bitboard(board: Bitboard) -> float:
+    """Converts 64 bit bitboard to float between 0 and 1"""
+    return unsign_bitboard(board) / MAX_BITBOARD
 
 
 def rotate_bitboard(board: Bitboard) -> Bitboard:
@@ -143,23 +149,6 @@ class BoardMetadata:
         ]
         metadata = tuple(map(str, astuple(self)[:-1]))
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
-
-    @property
-    def int_metadata(self) -> list[int]:
-        """Returns list containing integer representations of metadata"""
-        castling_rights = [
-            bool(right in self.side_castling_rights[PIECE_SIDE[right]])
-            for right in CASTLING_SYMBOLS
-        ]
-        return [
-            *(
-                castling_rights
-                if self.next_side == "WHITE"
-                else swap_halves(castling_rights, 2)
-            ),
-            self.en_passant_bitboard,
-            self.half_move_clock,
-        ]
 
     @property
     def repetition_metadata(self) -> tuple:
@@ -289,6 +278,21 @@ class ChessBoard(BoardMetadata):
             rows.append(row)
 
         return f"{'/'.join(rows)} {self.fen_metadata}"
+
+    @property
+    def numeric_repr(self) -> list[int | float]:
+        """Returns list containing numeric representations of relevant state portions"""
+        castling_rights = [
+            bool(right in self.side_castling_rights[PIECE_SIDE[right]])
+            for right in CASTLING_SYMBOLS
+        ]
+        bitboards = [board for piece, board in self.boards.items() if len(piece) == 1]
+        if self.next_side == "BLACK":
+            bitboards = list(map(rotate_bitboard, swap_halves(bitboards, 6)))
+        return (
+            list(map(normalize_bitboard, bitboards + [self.en_passant_bitboard]))
+            + castling_rights
+        )
 
     @property
     def current_state(self) -> None:

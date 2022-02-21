@@ -5,9 +5,9 @@ from collections import deque
 from math import inf, log, sqrt
 from typing import Iterable
 
+import neat.nn
 from neat.nn import FeedForwardNetwork
 
-from chess_logic.board import rotate_bitboard, swap_halves
 from chess_logic.core_chess import Chess, PerformedMove
 from chess_logic.move_generation import Move
 
@@ -35,18 +35,13 @@ class Node:
         """Returns child of node with highest UCB score"""
         return max(self.children, key=lambda child: child.ucb)
 
-    def calculate_reward(self, chess_state, engine):
+    def calculate_reward(self, chess_state: Chess, engine: neat.nn.FeedForwardNetwork):
         """Returns the estimated (exact for terminal node) reward value for node"""
         if self.cached_reward is None and chess_state.game_over:
-            self.cached_reward = -1 * chess_state.is_check
+            self.cached_reward = 0 if chess_state.is_check else 0.5
         if self.cached_reward is not None:
             return self.cached_reward
-        bitboards = [
-            board for piece, board in chess_state.boards.items() if len(piece) == 1
-        ]
-        if chess_state.next_side == "BLACK":
-            bitboards = list(map(rotate_bitboard, swap_halves(bitboards, 6)))
-        return engine.activate(bitboards + chess_state.int_metadata)[0]
+        return engine.activate(chess_state.numeric_repr)[0]
 
     def backpropagate(self, reward: int | float) -> None:
         """Feeds reward of simulated node up tree to parent at each level"""
@@ -54,7 +49,7 @@ class Node:
         while node is not None:
             node.reward += reward
             node.visited += 1
-            reward *= -1
+            reward = 1 - reward
             node = node.parent
 
 
