@@ -8,9 +8,9 @@ from dataclasses import astuple, dataclass, field
 from functools import partial
 from itertools import product
 from operator import and_, or_
-from typing import Callable, Iterable, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
-from numpy import binary_repr
+from numba import njit, types
 
 Bitboard = int
 Coord = Sequence[int]
@@ -64,38 +64,28 @@ UNSIGN_MASK = (1 << 64) - 1
 MAX_BITBOARD = 1 << 64 - 1
 
 
-def fen_portions(fen: str) -> list[str]:
-    """Splits FEN into space-separated components"""
-    return fen.split()
+@njit(types.uint64(types.uint64))
+def unsigned_not(board: Bitboard) -> Bitboard:
+    """Returns positive version of boolean NOT of bitboard, enabling use with numba"""
+    return ~board & UNSIGN_MASK
 
 
-def fens_portion(fens: Iterable[str], portion_i: int) -> Iterable[str]:
-    """Returns generator retrieving specified portion of multiple FENs"""
-    return map(lambda fen: fen_portions(fen)[portion_i], fens)
-
-
-def get_bitboards_to_edit(piece: str) -> tuple:
-    """Returns tuple of bitboards requiring editing when moving piece"""
-    return piece, PIECE_SIDE[piece], "GAME"
-
-
-def unsign_bitboard(board: Bitboard) -> Bitboard:
-    """
-    Converts bitboard to unsigned 64-bit bitboard (negative values could arise from
-    two's complement when bitwise NOT used on bitboard as Python has no length limit for
-    integers)
-    """
-    return board & UNSIGN_MASK
-
-
+@njit(types.float64(types.uint64))
 def normalize_bitboard(board: Bitboard) -> float:
     """Converts 64 bit bitboard to float between 0 and 1"""
-    return unsign_bitboard(board) / MAX_BITBOARD
+    return board / MAX_BITBOARD
 
 
+@njit(types.uint64(types.uint64), locals=dict(board=types.uint64))
 def rotate_bitboard(board: Bitboard) -> Bitboard:
     """Reverses single bitboard bitwise"""
-    return int(binary_repr(unsign_bitboard(board), 64)[::-1], 2)
+    board = ((board & 0x5555555555555555) << 1) | ((board & 0xAAAAAAAAAAAAAAAA) >> 1)
+    board = ((board & 0x3333333333333333) << 2) | ((board & 0xCCCCCCCCCCCCCCCC) >> 2)
+    board = ((board & 0xF0F0F0F0F0F0F0F) << 4) | ((board & 0xF0F0F0F0F0F0F0F0) >> 4)
+    board = ((board & 0xFF00FF00FF00FF) << 8) | ((board & 0xFF00FF00FF00FF00) >> 8)
+    board = ((board & 0xFFFF0000FFFF) << 16) | ((board & 0xFFFF0000FFFF0000) >> 16)
+    board = ((board & 0xFFFFFFFF) << 32) | ((board & 0xFFFFFFFF00000000) >> 32)
+    return board
 
 
 def swap_halves(data: list, half_length: int) -> list:
@@ -235,7 +225,7 @@ class ChessBoard(BoardMetadata):
         Initialises chess state from standard starting position or from optional
         Forsyth–Edwards Notation (FEN) argument
         """
-        fen_positions, *metadata = fen_portions(fen)
+        fen_positions, *metadata = fen.split()
         super().__init__(*metadata)
         self.cached_state = None
         self.fen_positions_to_bitboards(fen_positions)
@@ -286,7 +276,7 @@ class ChessBoard(BoardMetadata):
             bool(right in self.side_castling_rights[PIECE_SIDE[right]])
             for right in CASTLING_SYMBOLS
         ]
-        bitboards = [board for piece, board in self.boards.items() if len(piece) == 1]
+        bitboards = list(self.boards.values())[:12]
         if self.next_side == "BLACK":
             bitboards = list(map(rotate_bitboard, swap_halves(bitboards, 6)))
         return (
@@ -301,13 +291,9 @@ class ChessBoard(BoardMetadata):
             self.cached_state = tuple(self.boards.values()) + self.repetition_metadata
         return self.cached_state
 
-    def get_bitboard(self, piece: str) -> Bitboard:
-        """Returns integer representing bitboard of given piece"""
-        return self.boards[piece]
-
     def piece_exists_at_square(self, square: Coord, piece: str) -> bool:
         """Checks whether piece exists at square for given board"""
-        return bool(self.get_bitboard(piece) & SQUARE_BITBOARD[square])
+        return bool(self.boards[piece] & SQUARE_BITBOARD[square])
 
     def get_piece_at_square(self, square: Coord) -> Optional[str]:
         """Returns piece at square on chess board if there is one and 'None' if not"""
@@ -322,8 +308,8 @@ class ChessBoard(BoardMetadata):
         Edits all bitboards requiring editing when moving piece by applying given
         function between bitboard and mask at index
         """
-        for bitboard in get_bitboards_to_edit(piece):
-            self.boards[bitboard] = command(self.get_bitboard(bitboard), mask)
+        for bitboard in (piece, PIECE_SIDE[piece], "GAME"):
+            self.boards[bitboard] = command(self.boards[bitboard], mask)
 
     def add_bitboard_square(self, piece: str, square: Coord) -> None:
         """Adds piece presence to required bitboards (changes square bit to 1)"""
@@ -331,7 +317,7 @@ class ChessBoard(BoardMetadata):
 
     def remove_bitboard_square(self, piece: str, square: Coord) -> None:
         """Removes piece presence from required bitboards (changes square bit to 0)"""
-        self.edit_bitboard(piece, ~SQUARE_BITBOARD[square], and_)
+        self.edit_bitboard(piece, unsigned_not(SQUARE_BITBOARD[square]), and_)
 
     def move_piece_bitboard_square(
         self, piece: str, old_square: Coord, new_square: Coord

@@ -4,6 +4,8 @@ from functools import reduce
 from operator import itemgetter, or_
 from typing import Any, Callable, Iterator, NamedTuple, Optional
 
+from numba import njit, types
+
 from chess_logic.board import (
     Bitboard,
     BITBOARD_SQUARE,
@@ -19,7 +21,7 @@ from chess_logic.board import (
     ROWS_AND_COLUMNS,
     SIDES,
     SQUARE_BITBOARD,
-    SQUARE_BITBOARD_INDEX,
+    unsigned_not,
 )
 
 Bitboards = dict[str, Bitboard]
@@ -109,20 +111,28 @@ def total_slider_moves(
     )
 
 
+@njit
 def lsb(bitboard: Bitboard) -> Bitboard:
     """Returns bitboard representing lowest set bit in given bitboard"""
     return bitboard & -bitboard
 
 
+@njit
 def msb(bitboard: Bitboard) -> Bitboard:
     """Returns bitboard representing highest set bit in given bitboard"""
-    return 1 << bitboard.bit_length() - 1
+    shift = 1
+    while shift <= 32:
+        bitboard |= bitboard >> shift
+        shift <<= 1
+    return (bitboard + 1) >> 1
 
 
+@njit(types.void(types.uint64))
 def bitboard_piece_masks(bitboard: Bitboard) -> Iterator[Bitboard]:
     """Yields all piece masks (bitboard representing one piece) in given bitboard"""
     while bitboard:
-        yield (piece_mask := lsb(bitboard))
+        piece_mask = lsb(bitboard)
+        yield piece_mask
         bitboard &= ~piece_mask
 
 
@@ -151,10 +161,11 @@ KING_ATTACK_PATH = {
 }
 
 
-def king_attacker_and_path_in_direction(shift, king_bitboard, attackers):
+@njit(types.UniTuple(types.uint64, 2)(types.int8, types.uint64, types.uint64))
+def king_attacker_and_path_in_direction(shift, attacker_path, attackers):
     """Returns first attacker in given direction and path of attacker if any"""
-    attacker_path = KING_ATTACK_PATH[king_bitboard][shift]
-    if relevant_attackers := attacker_path & attackers:
+    relevant_attackers = attacker_path & attackers
+    if relevant_attackers:
         if shift > 0:
             first_attacker = lsb(relevant_attackers)
             attacker_path &= (first_attacker << 1) - 1
@@ -214,20 +225,20 @@ CASTLING_CLEAR_BITBOARD = {
 
 NON_SLIDERS = "KN"
 KING_MASKS = {
-    +8 + 1: ~(RANKS[7] | FILES[7]),
-    +8 + 0: ~RANKS[7],
-    +8 - 1: ~(RANKS[7] | FILES[0]),
-    +0 + 1: ~FILES[7],
-    +0 - 1: ~FILES[0],
-    -8 + 1: ~(RANKS[0] | FILES[7]),
-    -8 + 0: ~RANKS[0],
-    -8 - 1: ~(RANKS[0] | FILES[0]),
+    +8 + 1: unsigned_not(RANKS[7] | FILES[7]),
+    +8 + 0: unsigned_not(RANKS[7]),
+    +8 - 1: unsigned_not(RANKS[7] | FILES[0]),
+    +0 + 1: unsigned_not(FILES[7]),
+    +0 - 1: unsigned_not(FILES[0]),
+    -8 + 1: unsigned_not(RANKS[0] | FILES[7]),
+    -8 + 0: unsigned_not(RANKS[0]),
+    -8 - 1: unsigned_not(RANKS[0] | FILES[0]),
 }
 KNIGHT_FORWARD_MASKS = {
-    1 * 8 + 2: ~(RANKS[7] | sum(FILES[6:])),
-    1 * 8 - 2: ~(RANKS[7] | sum(FILES[:2])),
-    2 * 8 + 1: ~(sum(RANKS[6:]) | FILES[7]),
-    2 * 8 - 1: ~(sum(RANKS[6:]) | FILES[0]),
+    1 * 8 + 2: unsigned_not(RANKS[7] | sum(FILES[6:])),
+    1 * 8 - 2: unsigned_not(RANKS[7] | sum(FILES[:2])),
+    2 * 8 + 1: unsigned_not(sum(RANKS[6:]) | FILES[7]),
+    2 * 8 - 1: unsigned_not(sum(RANKS[6:]) | FILES[0]),
 }
 KNIGHT_MASKS = KNIGHT_FORWARD_MASKS | {
     -shift: rotate_bitboard(mask) for shift, mask in KNIGHT_FORWARD_MASKS.items()
@@ -295,13 +306,6 @@ class Move(NamedTuple):
             move
             if self.context_flag != "PROMOTION"
             else move + self.context_data.lower()
-        )
-
-    def __int__(self):
-        """Returns integer representation of move"""
-        return (
-            63 * SQUARE_BITBOARD_INDEX[self.old_square]
-            + SQUARE_BITBOARD_INDEX[self.new_square]
         )
 
 
@@ -393,7 +397,7 @@ class MoveGenerator(ChessBoard):
         blockable = pinned = 0
         for shift in KING_SHIFTS:
             first_attacker, first_attacker_path = king_attacker_and_path_in_direction(
-                shift, king_bitboard, self.move_boards["GAME"]
+                shift, KING_ATTACK_PATH[king_bitboard][shift], self.move_boards["GAME"]
             )
             if first_attacker:
                 if self.is_attacker_in_direction(
@@ -405,17 +409,12 @@ class MoveGenerator(ChessBoard):
                         self.is_check = True
                         blockable |= first_attacker_path
                 elif first_attacker & self.move_boards["SAME"]:
-                    (
-                        second_attacker,
-                        second_attacker_path,
-                    ) = king_attacker_and_path_in_direction(
-                        shift,
-                        king_bitboard,
-                        self.move_boards["GAME"] & ~first_attacker_path,
-                    )
                     if self.is_attacker_in_direction(
-                        second_attacker,
-                        second_attacker_path,
+                        *king_attacker_and_path_in_direction(
+                            shift,
+                            KING_ATTACK_PATH[king_bitboard][shift],
+                            self.move_boards["GAME"] & ~first_attacker_path,
+                        ),
                         shift,
                         first_attacker=False,
                     ):
@@ -482,7 +481,9 @@ class MoveGenerator(ChessBoard):
         return square & self.total_knight_attacks or any(
             self.is_attacker_in_direction(
                 *king_attacker_and_path_in_direction(
-                    shift, square, self.move_boards["NO KING GAME"]
+                    shift,
+                    KING_ATTACK_PATH[square][shift],
+                    self.move_boards["NO KING GAME"],
                 ),
                 shift,
             )
