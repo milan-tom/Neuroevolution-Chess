@@ -2,7 +2,7 @@
 
 from itertools import permutations
 from multiprocessing import cpu_count, Pool
-from os import path
+from os import listdir, mkdir, path
 
 from tqdm import tqdm
 import neat
@@ -11,12 +11,16 @@ from chess_logic.board import SIDES
 from chess_logic.core_chess import Chess
 from chess_ai.mcts import MCTS
 
+CURRENT_PATH = path.dirname(__file__)
+CHECKPOINT_DIR = path.join(CURRENT_PATH, "neat_checkpoints", "")
+if not path.exists(CHECKPOINT_DIR):
+    mkdir(CHECKPOINT_DIR)
 CONFIG = neat.Config(
     neat.DefaultGenome,
     neat.DefaultReproduction,
     neat.DefaultSpeciesSet,
     neat.DefaultStagnation,
-    path.join(path.dirname(__file__), "config-feedforward"),
+    path.join(CURRENT_PATH, "config-feedforward"),
 )
 mcts = MCTS()
 ValueNet = neat.nn.FeedForwardNetwork
@@ -65,15 +69,24 @@ def eval_genomes(
 
 def run_training(num_generations: int) -> None:
     """Runs NEAT for certain number of generations using provided configuration"""
-    # Create the population, which is the top-level object for a NEAT run.
-    population = neat.Population(CONFIG)
+    # Instantiates checkpointer to store/restore generations
+    checkpointer = neat.Checkpointer(1, filename_prefix=CHECKPOINT_DIR)
+    # Create the population from checkpoint if present else from scratch based on config
+    if latest := max(listdir(CHECKPOINT_DIR), key=int, default=False):
+        population = checkpointer.restore_checkpoint(path.join(CHECKPOINT_DIR, latest))
+    else:
+        population = neat.Population(CONFIG)
 
-    # Add a stdout reporter to show progress in the terminal.
-    population.add_reporter(neat.StdOutReporter(True))
+    # Add reporters to track progress and display information in the terminal
     stats = neat.StatisticsReporter()
-    population.add_reporter(stats)
+    for reporter in (neat.StdOutReporter(True), stats, checkpointer):
+        population.add_reporter(reporter)
 
+    # Run NEAT algorithm on population for specified number of generations
     population.run(eval_genomes, num_generations)
+
+    # Saves final statistics
+    stats.save()
 
 
 if __name__ == "__main__":
