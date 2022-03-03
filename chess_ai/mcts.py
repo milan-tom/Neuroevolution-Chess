@@ -60,14 +60,16 @@ class MCTS:
         """Initialises MCTS parameters"""
         self.chess_state = self.root = None
 
-    def best_move(self, chess_state: Chess, engine: FeedForwardNetwork) -> Move:
+    def best_move(
+        self, chess_state: Chess, engine: FeedForwardNetwork, num_simulations: int
+    ) -> Move:
         """Uses MCTS simulations and value network to find best move in current state"""
         self.chess_state = chess_state
         self.root = Node()
         self.expand_node(self.root)
 
         # Runs cycles of selection, expansion, simulation, and backpropogation
-        for _ in range(100):
+        for _ in range(num_simulations):
             node = self.select_node()
             undo_path = self.move_to_node_state(node)
             if node.cached_reward is None:

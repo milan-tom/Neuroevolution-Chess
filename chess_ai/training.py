@@ -3,6 +3,7 @@
 from itertools import permutations
 from multiprocessing import cpu_count, Pool
 from os import listdir, mkdir, path
+from pickle import dump, load
 
 from tqdm import tqdm
 import neat
@@ -12,6 +13,7 @@ from chess_logic.core_chess import Chess
 from chess_ai.mcts import MCTS
 
 CURRENT_PATH = path.dirname(__file__)
+BEST_PATH = path.join(CURRENT_PATH, "best_genome")
 CHECKPOINT_DIR = path.join(CURRENT_PATH, "neat_checkpoints", "")
 if not path.exists(CHECKPOINT_DIR):
     mkdir(CHECKPOINT_DIR)
@@ -23,7 +25,6 @@ CONFIG = neat.Config(
     path.join(CURRENT_PATH, "config-feedforward"),
 )
 mcts = MCTS()
-ValueNet = neat.nn.FeedForwardNetwork
 
 
 def simulate_match(
@@ -34,13 +35,27 @@ def simulate_match(
     sides_to_players = dict(zip(SIDES, (white_player, black_player)))
     chess_state = Chess()
     while not chess_state.game_over and chess_state.move_number <= 50:
-        move = mcts.best_move(chess_state, sides_to_players[chess_state.next_side])
+        move = mcts.best_move(chess_state, sides_to_players[chess_state.next_side], 100)
         chess_state.move_piece(move)
     if chess_state.winner is None:
         return 0, 0
     if chess_state.winner == "WHITE":
         return 1, -1
     return -1, 1
+
+
+def save_best(best_genome: neat.DefaultGenome) -> None:
+    """Saves the best genome as a pickle file"""
+    with open(BEST_PATH, "wb") as best_genome_file:
+        dump(best_genome, best_genome_file)
+
+
+def get_best_engine() -> neat.nn.FeedForwardNetwork:
+    """Returns the neural network based on the saved best genome"""
+    if path.exists(BEST_PATH):
+        with open(BEST_PATH, "rb") as best_genome_file:
+            return neat.nn.FeedForwardNetwork.create(load(best_genome_file), CONFIG)
+    raise FileNotFoundError("Complete training before retrieving the best genome.")
 
 
 def eval_genomes(
@@ -65,6 +80,7 @@ def eval_genomes(
         for job, players in tqdm(tuple(zip(jobs, matches))):
             for genome, reward in zip(players, job.get()):
                 genome.fitness += reward
+    save_best(max(genomes, key=lambda x: x.fitness))
 
 
 def run_training(num_generations: int) -> None:

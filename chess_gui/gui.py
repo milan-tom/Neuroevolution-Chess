@@ -11,13 +11,12 @@ from time import process_time
 from typing import Callable, Iterable, Optional
 import os
 
-# from threading import Thread
-
 import pygame
 import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
+from chess_ai.engine import best_engine_move
 from chess_logic.board import (
     Coord,
     PIECE_SIDE,
@@ -133,9 +132,7 @@ class ChessGUI:
 
         # Initialises chess object (manages chess rules for GUI) and engine-related data
         self.chess = Chess(fen)
-        # self.engine = ChessEngine()
         self.current_players = dict(zip(SIDES, PLAYERS))
-        self.best_engine_move = None
 
         # Draws the board automatically
         self.draw_board()
@@ -284,7 +281,6 @@ class ChessGUI:
             (PLAYERS.index(self.current_players[side]) + 1) % 2
         ]
         self.draw_board()
-        # self.check_engine_move()
 
     def show_moves(self, old_square: Coord) -> None:
         """Display move buttons for clicked piece (double clicking clears moves)"""
@@ -321,30 +317,10 @@ class ChessGUI:
                 func=partial(self.move_piece, move),
             )
 
-    def engine_move(self) -> None:
-        """Gets the best engine move for the current side"""
-        # inital_side = self.chess.next_side
-        # best_move = self.engine.best_move(self.chess)
-        # # Verifies state hasn't changed since move request initiated
-        # if (
-        #     self.chess.next_side == inital_side
-        #     and self.current_players[inital_side] == "AI"
-        # ):
-        #     self.best_engine_move = best_move
-
-    # def check_engine_move(self) -> None:
-    #     """Checks if it is engine's turn to move, starting move search thread if so"""
-    #     if (
-    #         not (self.chess.game_over or self.engine.thinking)
-    #         and self.current_players[self.chess.next_side] == "AI"
-    #     ):
-    #         Thread(target=self.engine_move).start()
-
     def move_piece(self, move: Move) -> None:
         """Moves piece from one square to another and updates GUI accordingly"""
         self.chess.move_piece(move)
         self.draw_board()
-        # self.check_engine_move()
 
     def mainloop(self, time_limit: int | float = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
@@ -366,9 +342,11 @@ class ChessGUI:
             pygame_widgets.update(events)
             pygame.display.update()
 
-            # if self.best_engine_move is not None:
-            #     self.move_piece(self.best_engine_move)
-            #     self.best_engine_move = None
+            if (
+                not self.chess.game_over
+                and self.current_players[self.chess.next_side] == "AI"
+            ):
+                self.move_piece(best_engine_move(self.chess, 10000))
 
 
 if __name__ == "__main__":
