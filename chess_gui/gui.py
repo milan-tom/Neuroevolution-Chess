@@ -9,6 +9,7 @@ from itertools import cycle, product
 from operator import mul, sub
 from time import process_time
 from typing import Callable, Iterable, Optional
+from warnings import warn
 import os
 
 import pygame
@@ -16,7 +17,6 @@ import pygame.freetype
 import pygame_widgets
 from pygame_widgets.button import Button
 
-from chess_ai.engine import best_engine_move
 from chess_logic.board import (
     Coord,
     PIECE_SIDE,
@@ -42,7 +42,13 @@ PIECE_IMAGES = {
     ).subsurface(piece_image.get_bounding_rect())
     for piece in PIECES
 }
-PLAYERS = "HUMAN", "AI"
+
+PLAYERS = ["HUMAN", "AI"]
+try:
+    from chess_ai.engine import best_engine_move
+except FileNotFoundError:
+    warn("Train the engine before opening the GUI in order to enable AI.")
+    PLAYERS.pop()
 PLAYER_ICONS = {
     player_type: {side: load_image(side, player_type) for side in SIDES}
     for player_type in PLAYERS
@@ -132,7 +138,7 @@ class ChessGUI:
 
         # Initialises chess object (manages chess rules for GUI) and engine-related data
         self.chess = Chess(fen)
-        self.current_players = dict(zip(SIDES, PLAYERS))
+        self.current_players = dict(zip(SIDES, cycle(PLAYERS)))
 
         # Draws the board automatically
         self.draw_board()
@@ -278,7 +284,7 @@ class ChessGUI:
     def switch_player(self, side: str) -> None:
         """Switches type of player playing for side whose button clicked"""
         self.current_players[side] = PLAYERS[
-            (PLAYERS.index(self.current_players[side]) + 1) % 2
+            (PLAYERS.index(self.current_players[side]) + 1) % len(PLAYERS)
         ]
         self.draw_board()
 
