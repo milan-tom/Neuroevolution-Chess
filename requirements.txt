@@ -1,7 +1,6 @@
 black == 22.1.0
 neat-python == 0.92
 numba == 0.55.1
-numpy == 1.21.5
 pre_commit == 2.17.0
 pygame == 2.1.2
 pygame-widgets == 1.0.0
