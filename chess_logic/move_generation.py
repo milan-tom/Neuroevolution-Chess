@@ -42,7 +42,8 @@ FILE0 = sum(2**i for i in range(0, 64, 8))
 FILES = [FILE0] + [FILE0 << i for i in range(1, 8)]
 
 SLIDERS = "RB"
-ROOK_SHIFTS = {shift: itemgetter(i) for i, shift in enumerate((8, 1))}
+Shifts = dict[int, Callable]
+ROOK_SHIFTS: Shifts = {shift: itemgetter(i) for i, shift in enumerate((8, 1))}
 ROOK_SHIFTS |= {
     -shift: lambda square, i=i: 7 - square[i] for i, shift in enumerate(ROOK_SHIFTS)
 }
@@ -53,7 +54,9 @@ BISHOP_SHIFTS = {
     for i, shift in enumerate((9, -7, 7, -9))
 }
 KING_SHIFTS = ROOK_SHIFTS | BISHOP_SHIFTS
-SLIDER_SHIFTS = dict(zip(SLIDERS + "K", (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS)))
+SLIDER_SHIFTS: dict[str, Shifts] = dict(
+    zip(SLIDERS + "K", (ROOK_SHIFTS, BISHOP_SHIFTS, KING_SHIFTS))
+)
 
 
 def signed_shift(board: Bitboard, shift: int) -> Bitboard:
@@ -88,7 +91,7 @@ def slider_moves_in_direction(
     """Returns bitboard of moves available to slider in given direction from square"""
     moves = 0
     move_mask = SQUARE_BITBOARD[square]
-    for _ in range(1 if mask_edges else 0, SLIDER_SHIFTS[slider][shift](square)):
+    for _ in range(SLIDER_SHIFTS[slider][shift](square) - (1 if mask_edges else 0)):
         move_mask = signed_shift(move_mask, shift)
         moves |= move_mask
         if move_mask & blockers:
@@ -251,7 +254,7 @@ def non_slider_moves(
     masks: dict[int, Bitboard],
     context_flag: Optional[str] = None,
     context_data_func: Callable[[Bitboard], Any] = lambda piece_mask: None,
-) -> dict[Bitboard, list[Bitboard]]:
+) -> dict[Bitboard, list[PseudoMove]]:
     """Returns dictionary mapping of squares to list of new squares reachable"""
     return {
         piece_mask: [
@@ -309,6 +312,9 @@ class Move(NamedTuple):
         )
 
 
+Moves = tuple[Move, ...]
+
+
 class MoveGenerator(ChessBoard):
     """Handles all move generation for current chess state"""
 
@@ -322,8 +328,8 @@ class MoveGenerator(ChessBoard):
         )
         self.move_functions_and_pieces = list(zip(move_functions, REMAINING_PIECES))
         self.is_check = self.promotion = self.rotate = False
-        self.move_boards = {}
-        self.knight_attacks = {}
+        self.move_boards: Bitboards = {}
+        self.knight_attacks: dict[Bitboard, Bitboard] = {}
         self.total_knight_attacks = 0
 
     def move_bitboard_to_square(self, move_bitboard: Bitboard) -> Coord:
@@ -332,10 +338,12 @@ class MoveGenerator(ChessBoard):
             REVERSED_BITBOARD[move_bitboard] if self.rotate else move_bitboard
         ]
 
-    def legal_moves(self) -> tuple[Move]:
-        """Returns a list of all legal moves in current board state"""
+    def legal_moves(self) -> Moves:
+        """Returns a tuple of all legal moves in current board state"""
         return tuple(
-            Move(*map(self.move_bitboard_to_square, move[:2]), *move[2:])
+            Move(
+                *map(self.move_bitboard_to_square, move[:2]), *move[2:]  # type: ignore
+            )
             for move in self.generate_legal_moves()
         )
 
@@ -396,12 +404,13 @@ class MoveGenerator(ChessBoard):
         self.is_check = False
         blockable = pinned = 0
         for shift in KING_SHIFTS:
-            first_attacker, first_attacker_path = king_attacker_and_path_in_direction(
+            first_attacker_and_attacker_path = king_attacker_and_path_in_direction(
                 shift, KING_ATTACK_PATH[king_bitboard][shift], self.move_boards["GAME"]
             )
+            first_attacker, first_attacker_path = first_attacker_and_attacker_path
             if first_attacker:
                 if self.is_attacker_in_direction(
-                    first_attacker, first_attacker_path, shift
+                    first_attacker_and_attacker_path, shift
                 ):
                     if self.is_check:
                         blockable = 0
@@ -410,7 +419,7 @@ class MoveGenerator(ChessBoard):
                         blockable |= first_attacker_path
                 elif first_attacker & self.move_boards["SAME"]:
                     if self.is_attacker_in_direction(
-                        *king_attacker_and_path_in_direction(
+                        king_attacker_and_path_in_direction(
                             shift,
                             KING_ATTACK_PATH[king_bitboard][shift],
                             self.move_boards["GAME"] & ~first_attacker_path,
@@ -447,23 +456,26 @@ class MoveGenerator(ChessBoard):
 
     def is_attacker_in_direction(
         self,
-        attacker: Bitboard,
-        attacker_path: Bitboard,
+        attacker_and_attacker_path: tuple[Bitboard, Bitboard],
         shift: int,
         first_attacker: bool = True,
-    ) -> tuple[Bitboard, Bitboard]:
+    ) -> bool:
         """Determines whether given attacker is attacking king"""
-        return attacker & self.move_boards["OPPOSITE"] and (
-            any(
-                attacker & self.move_boards[possible_attacker]
-                for possible_attacker in POSSIBLE_ATTACKERS[shift]
-            )
-            or first_attacker
-            and attacker_path.bit_count() == 1
-            and attacker
-            & (
-                self.move_boards["k"]
-                | self.move_boards["p"] * (shift in PAWN_CAPTURE_MASKS)
+        attacker, attacker_path = attacker_and_attacker_path
+        return bool(
+            attacker & self.move_boards["OPPOSITE"]
+            and (
+                any(
+                    attacker & self.move_boards[possible_attacker]
+                    for possible_attacker in POSSIBLE_ATTACKERS[shift]
+                )
+                or first_attacker
+                and attacker_path.bit_count() == 1
+                and attacker
+                & (
+                    self.move_boards["k"]
+                    | self.move_boards["p"] * (shift in PAWN_CAPTURE_MASKS)
+                )
             )
         )
 
@@ -478,16 +490,19 @@ class MoveGenerator(ChessBoard):
 
     def square_attacked(self, square: Bitboard) -> bool:
         """Checks if given square attacked by any opposing piece"""
-        return square & self.total_knight_attacks or any(
-            self.is_attacker_in_direction(
-                *king_attacker_and_path_in_direction(
-                    shift,
-                    KING_ATTACK_PATH[square][shift],
-                    self.move_boards["NO KING GAME"],
-                ),
-                shift,
+        return bool(
+            square & self.total_knight_attacks
+            or any(
+                self.is_attacker_in_direction(
+                    king_attacker_and_path_in_direction(
+                        shift,
+                        KING_ATTACK_PATH[square][shift],
+                        self.move_boards["NO KING GAME"],
+                    ),
+                    shift=shift,
+                )
+                for shift in KING_SHIFTS
             )
-            for shift in KING_SHIFTS
         )
 
     def generate_castling_moves(self) -> Iterator[PseudoMove]:

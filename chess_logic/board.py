@@ -4,48 +4,48 @@ state, and executing them on the state
 """
 
 from collections import deque
-from dataclasses import astuple, dataclass, field
-from functools import partial
+from dataclasses import astuple, dataclass
 from itertools import product
 from operator import and_, or_
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional
 
 from numba import njit, types
 
 Bitboard = int
-Coord = Sequence[int]
+Coord = tuple[int, int]
 
 PIECES = "KQRBNPkqrbnp"
 SIDES = ["WHITE", "BLACK"]
 OPPOSITE_SIDE = {side: SIDES[(i + 1) % 2] for i, side in enumerate(SIDES)}
 PIECE_SIDE = {piece: SIDES[piece.islower()] for piece in PIECES}
 
-ROWS_AND_COLUMNS = tuple(product(range(8), repeat=2))
+ROWS_AND_COLUMNS = tuple(product(range(8), range(8)))
 SQUARE_BITBOARD_INDEX = {
     square: (7 - square[0]) * 8 + 7 - square[1] for square in ROWS_AND_COLUMNS
 }
 SQUARE_BITBOARD = {
     square: 1 << index for square, index in SQUARE_BITBOARD_INDEX.items()
 }
-BITBOARD_SQUARE = dict(map(reversed, SQUARE_BITBOARD.items()))
+BITBOARD_SQUARE = {bitboard: square for square, bitboard in SQUARE_BITBOARD.items()}
 
 STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-State = tuple[int | str]
+State = tuple[int | str, ...]
 
 FEN_TO_BITBOARD_SQUARE = {
     f"{file}{8 - rank_i}": SQUARE_BITBOARD[(rank_i, file_i)]
     for file_i, file in enumerate("abcdefgh")
     for rank_i in range(8)
 } | {"-": 0}
-BITBOARD_TO_FEN_SQUARE = dict(map(reversed, FEN_TO_BITBOARD_SQUARE.items()))
+BITBOARD_TO_FEN_SQUARE = {
+    bitboard: fen_sqaure for fen_sqaure, bitboard in FEN_TO_BITBOARD_SQUARE.items()
+}
 
 CASTLING_SYMBOLS = "KQkq"
 CastlingRights = dict[str, list[str]]
-CASTLING_ROOK_MOVES = dict(zip(CASTLING_SYMBOLS, (((7, 7), (7, 5)), ((7, 0), (7, 3)))))
-CASTLING_ROOK_MOVES |= {
-    symbol.lower(): tuple(map(lambda square: (square[0] - 7, square[1]), squares))
-    for symbol, squares in CASTLING_ROOK_MOVES.items()
-}
+castling_rook_squares = [
+    [(row, column) for column in c] for row in (7, 0) for c in ((7, 5), (0, 3))
+]
+CASTLING_ROOK_MOVES = dict(zip(CASTLING_SYMBOLS, castling_rook_squares))
 ROOK_SQUARES_VOIDING_CASTLING = {
     squares[0]: castling for castling, squares in CASTLING_ROOK_MOVES.items()
 }
@@ -53,7 +53,7 @@ ROOK_SQUARES_VOIDING_CASTLING = {
 
 def void_castling_by_rook(
     castling_rights: list[str], rook_square: Coord, lost_castling_rights: list[str]
-) -> Optional[str]:
+) -> None:
     """Removes castling right voided by rook move/capture if any"""
     if (right := ROOK_SQUARES_VOIDING_CASTLING.get(rook_square)) in castling_rights:
         castling_rights.remove(right)
@@ -100,11 +100,8 @@ class BoardMetadata:
     next_side: str
     fen_castling: str
     fen_en_passant_square: str
-    half_move_clock: str | int
-    move_number: str | int
-    previous_states: deque[Optional[State]] = field(
-        default_factory=partial(deque, [None] * 10, maxlen=10), init=False
-    )
+    half_move_clock: int
+    move_number: int
 
     def __post_init__(self) -> None:
         """Alters fen values  to represent data in more suitable forms"""
@@ -120,9 +117,7 @@ class BoardMetadata:
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
         if self.en_passant_bitboard and self.next_side == "BLACK":
             self.en_passant_bitboard = rotate_bitboard(self.en_passant_bitboard)
-        self.half_move_clock, self.move_number = map(
-            int, (self.half_move_clock, self.move_number)
-        )
+        self.previous_states: deque[Optional[State]] = deque([None] * 10, maxlen=10)
 
     @property
     def fen_metadata(self) -> str:
@@ -137,7 +132,7 @@ class BoardMetadata:
             if self.next_side == "BLACK"
             else self.en_passant_bitboard
         ]
-        metadata = tuple(map(str, astuple(self)[:-1]))
+        metadata = tuple(map(str, astuple(self)))
         return " ".join((metadata[0][0].lower(),) + metadata[1:])
 
     @property
@@ -157,7 +152,7 @@ class BoardMetadata:
         """Updates board metadata after move"""
         moved_piece = moved_piece.upper()
         # Updates castling rights
-        castling_rights_lost = {side: [] for side in SIDES}
+        castling_rights_lost: CastlingRights = {side: [] for side in SIDES}
         if next_side_castling_rights := self.side_castling_rights[self.next_side]:
             next_side_castling_rights_lost = castling_rights_lost[self.next_side]
             match moved_piece:
@@ -226,8 +221,10 @@ class ChessBoard(BoardMetadata):
         Forsyth–Edwards Notation (FEN) argument
         """
         fen_positions, *metadata = fen.split()
-        super().__init__(*metadata)
-        self.cached_state = None
+        super().__init__(
+            *metadata[:3], *map(int, metadata[-2:])  # type: ignore[arg-type]
+        )
+        self.cached_state: Optional[State] = None
         self.fen_positions_to_bitboards(fen_positions)
 
     def fen_positions_to_bitboards(self, fen_positions: str) -> None:
@@ -285,7 +282,7 @@ class ChessBoard(BoardMetadata):
         )
 
     @property
-    def current_state(self) -> None:
+    def current_state(self) -> State:
         """Returns representation of current state used for checking repetition"""
         if self.cached_state is None:
             self.cached_state = tuple(self.boards.values()) + self.repetition_metadata
@@ -303,7 +300,9 @@ class ChessBoard(BoardMetadata):
                     return piece
         return None
 
-    def edit_bitboard(self, piece: str, mask: int, command: Callable):
+    def edit_bitboard(
+        self, piece: str, mask: int, command: Callable[[Bitboard, Bitboard], Bitboard]
+    ):
         """
         Edits all bitboards requiring editing when moving piece by applying given
         function between bitboard and mask at index

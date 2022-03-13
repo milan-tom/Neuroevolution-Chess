@@ -11,7 +11,7 @@ from chess_logic.board import (
     STARTING_FEN,
     State,
 )
-from chess_logic.move_generation import Move, MoveGenerator, PIECE_OF_SIDE
+from chess_logic.move_generation import Move, Moves, MoveGenerator, PIECE_OF_SIDE
 
 
 class PerformedMove(NamedTuple):
@@ -22,7 +22,7 @@ class PerformedMove(NamedTuple):
     context_flag: Optional[str]
     context_data: Any
     captured_piece: Optional[str]
-    old_legal_moves: tuple[Move]
+    old_legal_moves: Moves
     old_half_move_clock: int
     old_en_passant_bitboard: Bitboard
     castling_rights_lost: CastlingRights
@@ -35,11 +35,12 @@ class Chess(MoveGenerator):
     def __init__(self, fen: str = STARTING_FEN) -> None:
         super().__init__(fen)
         self.game_over = False
-        self.winner = self.game_over_message = None
+        self.winner: Optional[str] = None
+        self.game_over_message: Optional[str] = None
         self.update_board_state()
 
     def update_board_state(
-        self, legal_moves: Optional[tuple[Move]] = None, state: Optional[State] = None
+        self, legal_moves: Optional[Moves] = None, state: Optional[State] = None
     ) -> None:
         """Performs necessary updates when board state changed"""
         self.current_legal_moves = (
@@ -63,13 +64,13 @@ class Chess(MoveGenerator):
             self.game_over = False
 
         if self.game_over:
-            self.current_legal_moves = []
+            self.current_legal_moves = ()
 
     def legal_moves_from_square(self, square: Coord) -> list[Move]:
         """Returns all legal moves from specific square on board"""
         return [move for move in self.current_legal_moves if move.old_square == square]
 
-    def move_piece(self, move: Move, update: bool = True) -> Chess:
+    def move_piece(self, move: Move, update: bool = True) -> PerformedMove:
         """Moves piece at given square to new square, returning new chess state"""
         if captured_piece := self.get_piece_at_square(move.new_square):
             self.remove_bitboard_square(captured_piece, move.new_square)

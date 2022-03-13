@@ -30,7 +30,7 @@ mcts = MCTS()
 def simulate_match(
     white_player: neat.nn.FeedForwardNetwork,
     black_player: neat.nn.FeedForwardNetwork,
-) -> int:
+) -> tuple[int, int]:
     """Simulates match between 2 players, giving reward from test player perspective"""
     sides_to_players = dict(zip(SIDES, (white_player, black_player)))
     chess_state = Chess()
@@ -60,7 +60,7 @@ def get_best_engine() -> neat.nn.FeedForwardNetwork:
 
 def eval_genomes(
     genomes_data: list[tuple[int, neat.DefaultGenome]], config: neat.Config
-) -> int:
+) -> None:
     """Evaluates all genomes via competition with each other"""
     genomes = [genome_data[1] for genome_data in genomes_data]
     for genome in genomes:
@@ -88,7 +88,7 @@ def run_training(num_generations: int) -> None:
     # Instantiates checkpointer to store/restore generations
     checkpointer = neat.Checkpointer(1, filename_prefix=CHECKPOINT_DIR)
     # Create the population from checkpoint if present else from scratch based on config
-    if latest := max(listdir(CHECKPOINT_DIR), key=int, default=False):
+    if latest := max(listdir(CHECKPOINT_DIR), key=int, default=""):
         population = checkpointer.restore_checkpoint(path.join(CHECKPOINT_DIR, latest))
     else:
         population = neat.Population(CONFIG)

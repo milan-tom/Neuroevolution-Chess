@@ -9,9 +9,10 @@ import pygame_widgets
 import pytest
 
 from chess_gui.gui import ChessGUI, DEFAULT_BUTTON_COLOUR
-from chess_logic.board import Coord, ROWS_AND_COLUMNS
+from chess_logic.board import Coord, PIECE_SIDE, ROWS_AND_COLUMNS
 from tests import TEST_FENS
 
+TupleColour = tuple[int, int, int, int]
 TEST_DISPLAY_SIZES = list(product(range(500, 1500, 200), repeat=2))
 
 
@@ -25,35 +26,32 @@ TEST_DISPLAY_SIZES = list(product(range(500, 1500, 200), repeat=2))
 )
 def test_piece_image_positioning_and_colours(gui: ChessGUI) -> None:
     """Tests that all pieces are centred and have the correct colour"""
-    test_pxarray = pygame.PixelArray(gui.design)
     # Loops through squares, performing the tests if there is a piece there
     for square_coords in ROWS_AND_COLUMNS:
         if piece := gui.chess.get_piece_at_square(square_coords):
             # Stores the mapped colour values for pixels in the square
-            square_pxs = [
-                test_pxarray[x][y]
-                for x, y in gui.design.get_square_range(square_coords)
+            square_pxs: list[TupleColour] = [
+                tuple(gui.design.get_at(coord))  # type: ignore[misc]
+                for coord in gui.design.get_square_range(square_coords)
             ]
             # Tests centring and colour of piece image in square
             check_piece_image_centred(gui, square_pxs, square_coords)
-            check_piece_image_colours(gui, square_pxs, piece)
+            check_piece_image_colours(square_pxs, piece)
 
 
 def check_piece_image_centred(
-    test_gui: ChessGUI, square_pxs: list[int], squares: Coord
+    test_gui: ChessGUI, square_pxs: list[TupleColour], squares: Coord
 ) -> None:
     """Tests whether each piece is centred horizontally and vertically within its
     square"""
     # Filters coordinates of pixels different to square colours
-    mapped_square_colour = test_gui.design.map_rgb(
-        test_gui.design.get_square_colour(squares)
-    )
+    square_colour = test_gui.design.get_square_colour(squares)
     ranges_inside_image = [
         coord
         for coord, px_colour in zip(
             test_gui.design.get_square_range(squares), square_pxs
         )
-        if px_colour != mapped_square_colour
+        if px_colour != square_colour
     ]
     # Loops through x and y coordinates separately for square and filtered pixels
     for square_coord, image_range, square_size in zip(
@@ -68,16 +66,13 @@ def check_piece_image_centred(
         )
 
 
-def check_piece_image_colours(
-    test_gui: ChessGUI, square_pxs: list[int], piece: str
-) -> None:
+def check_piece_image_colours(square_pxs: list[TupleColour], piece: str) -> None:
     """
     Tests whether squares contain the correct colour piece image by checking that
     piece colour is second most common (first is background) colour in image
     """
     image_colour = Counter(square_pxs).most_common(2)[1][0]
-    expected_colour = "white" if piece.isupper() else "black"
-    assert test_gui.design.unmap_rgb(image_colour) == pygame.Color(expected_colour)
+    assert image_colour == pygame.Color(PIECE_SIDE[piece])
 
 
 def simulate_button_click(test_gui: ChessGUI, square_coords: Coord) -> None:

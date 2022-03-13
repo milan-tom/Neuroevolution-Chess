@@ -1,7 +1,5 @@
 """Contains all unit tests for GUI"""
 
-import pygame
-
 from chess_logic.board import ROWS_AND_COLUMNS
 
 
@@ -9,13 +7,11 @@ def test_square_fill(design) -> None:
     """Test if squares fill allocated space and handle borders correctly"""
     # Loops through beginnings of squares horizontally and vertically
     for square_coords in ROWS_AND_COLUMNS:
-        test_pxarray = pygame.PixelArray(design)
         # Checks all pixels in square have same colour as first pixel
-        square_x, square_y = design.square_to_pixel(square_coords)
-        square_colour = test_pxarray[square_x][square_y]
+        square_colour = design.get_at(design.square_to_pixel(square_coords))
         assert all(
-            test_pxarray[x][y] == square_colour
-            for x, y in design.get_square_range(square_coords)
+            design.get_at(coord) == square_colour
+            for coord in design.get_square_range(square_coords)
         )
 
 

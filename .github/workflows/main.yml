@@ -35,6 +35,9 @@ jobs:
       - name: Lint with pylint
         run: |
           pylint_runner
+      - name: Type check with mypy
+        run: |
+          mypy .
       - name: Test with pytest
         run: |
           pytest

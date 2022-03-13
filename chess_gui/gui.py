@@ -8,7 +8,7 @@ from functools import partial
 from itertools import cycle, product
 from operator import mul, sub
 from time import process_time
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 from warnings import warn
 import os
 
@@ -56,6 +56,7 @@ PLAYER_ICONS = {
 
 # Initialises pygame components and sets certain GUI parameters
 pygame.init()
+GAME_FONT: pygame.freetype.Font  # type: ignore[name-defined]
 GAME_FONT = pygame.freetype.SysFont("Verdana", 0)
 SCREEN_WIDTH, SCREEN_HEIGHT = DISPLAY_SIZE = 1536, 864
 DEFAULT_BUTTON_COLOUR = (0, 255, 0)
@@ -89,7 +90,9 @@ class Design(pygame.Surface):
 
     def square_to_pixel(self, square: Coord) -> Coord:
         """Returns pixel coordinate equivalent of square coordinate"""
-        return tuple(map(self.dimension_to_pixel, square[::-1]))
+        return tuple(
+            map(self.dimension_to_pixel, square[::-1])  # type: ignore[return-value]
+        )
 
     def get_square_rect(self, square: Coord) -> pygame.Rect:
         """Returns pygame 'Rect' object for specified row and column"""
@@ -149,7 +152,7 @@ class ChessGUI:
 
     def scale_coords(
         self,
-        coords: Iterable[int],
+        coords: Iterable[int | float],
         initial_resolution=DISPLAY_SIZE,
         final_resolution=None,
     ) -> list[int]:
@@ -163,12 +166,12 @@ class ChessGUI:
             )
         ]
 
-    def rect_scaled_img(self, img: pygame.Surface, rect: pygame.Rect) -> pygame.Surface:
+    def rect_scaled_img(
+        self, img: pygame.surface.Surface, rect: pygame.Rect
+    ) -> pygame.surface.Surface:
         """Returns image after scaling it to fit inside Pygame 'Rect' object"""
-        return pygame.transform.scale(
-            img,
-            self.scale_coords(*[img.get_size()] * 2, map(lambda x: 0.7 * x, rect[2:])),
-        )
+        scale_args = (*[img.get_size()] * 2, map(lambda x: 0.7 * x, rect[2:]))
+        return pygame.transform.scale(img, self.scale_coords(*scale_args))
 
     def scale_widget(
         self, widget: pygame_widgets.widget.WidgetBase, initial: Coord = DISPLAY_SIZE
@@ -182,14 +185,16 @@ class ChessGUI:
 
     def get_square_range(self, square: Coord) -> Iterable[Coord]:
         """Returns all scaled coordinates within specified square"""
-        return rect_range(self.scale_coords(self.design.get_square_rect(square)))
+        return rect_range(
+            self.scale_coords(self.design.get_square_rect(square))  # type: ignore
+        )
 
     def draw_button_at_rect(
         self,
         rect: pygame.Rect,
-        image: Optional[pygame.Surface],
-        func: Callable,
-        colour: tuple[int, int, int] = DEFAULT_BUTTON_COLOUR,
+        image: Optional[pygame.surface.Surface],
+        func: Callable[[], Any],
+        colour: str | tuple[int, int, int] = DEFAULT_BUTTON_COLOUR,
     ):
         """Draws button within specified Pygame 'Rect' object"""
         if image is not None:
@@ -206,7 +211,7 @@ class ChessGUI:
         self.scale_widget(button)
 
     def draw_button_at_square(
-        self, square: Coord, image: Optional[pygame.Surface] = None, **kwargs
+        self, square: Coord, image: Optional[pygame.surface.Surface] = None, **kwargs
     ) -> None:
         """Draws button at given square"""
         if image is None:
@@ -318,7 +323,7 @@ class ChessGUI:
         self.show_text("Choose the promotion piece:", rel_y=0.075)
         for move_i, move in enumerate(promotion_moves):
             self.draw_button_at_square(
-                square=(1, 9.15 + move_i),
+                square=(1, 9 + move_i),
                 image=PIECE_IMAGES[move.context_data],
                 func=partial(self.move_piece, move),
             )

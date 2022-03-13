@@ -3,7 +3,7 @@
 from __future__ import annotations
 from collections import deque
 from math import inf, log, sqrt
-from typing import Iterable
+from typing import Optional
 
 import neat.nn
 from neat.nn import FeedForwardNetwork
@@ -58,7 +58,8 @@ class MCTS:
 
     def __init__(self) -> None:
         """Initialises MCTS parameters"""
-        self.chess_state = self.root = None
+        self.chess_state: Optional[Chess] = None
+        self.root: Optional[Node] = None
 
     def best_move(
         self, chess_state: Chess, engine: FeedForwardNetwork, num_simulations: int
@@ -106,6 +107,6 @@ class MCTS:
         for move in self.chess_state.current_legal_moves:
             node.children.append(Node(node, move))
 
-    def revert_state(self, undo_path: Iterable[PerformedMove]) -> None:
+    def revert_state(self, undo_path: deque[PerformedMove]) -> None:
         """Undoes moves made to chess state based on order given"""
         deque(map(self.chess_state.undo_move, reversed(undo_path)), maxlen=0)
