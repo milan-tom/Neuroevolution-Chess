@@ -1,10 +1,5 @@
-black == 22.1.0
-mypy == 0.940
 neat-python == 0.92
 numba == 0.55.1
-pre_commit == 2.17.0
 pygame == 2.1.2
 pygame-widgets == 1.0.0
-pylint_runner == 0.6.0
-pytest == 7.1.0
 tqdm == 4.63.0

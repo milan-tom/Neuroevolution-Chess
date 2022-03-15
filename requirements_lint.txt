@@ -1,0 +1,6 @@
+-r requirements.txt
+
+black == 22.1.0
+isort == 5.10.1
+mypy == 0.940
+pylint_runner == 0.6.0
