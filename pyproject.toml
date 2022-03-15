@@ -8,3 +8,16 @@ no_strict_optional = true
 exclude = [
     "venv/",
 ]
+
+[tool.pylint]
+    [tool.pylint.master]
+    disable = ["import-error"]
+    ignore = ["venv"]
+    unsafe-load-any-extension = ["yes"]
+
+    [tool.pylint.'FORMAT']
+    max-line-length = 88
+
+    [tool.pylint.'DESIGN']
+    max-args = 7
+    max-attributes = 8
