@@ -1,3 +1,6 @@
+[tool.isort]
+profile = "black"
+
 [tool.mypy]
 show_error_codes = true
 ignore_missing_imports = true

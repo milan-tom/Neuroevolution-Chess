@@ -1,8 +1,8 @@
 """Contains all tests for move generation"""
 
+import json
 from os import path
 from typing import Iterator
-import json
 
 import pytest
 

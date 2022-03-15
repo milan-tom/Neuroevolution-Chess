@@ -3,6 +3,7 @@ A chess GUI, enabling visualisation of a chess states and making moves from the 
 state
 """
 
+import os
 from bisect import bisect_right
 from functools import partial
 from itertools import cycle, product
@@ -10,7 +11,6 @@ from operator import mul, sub
 from time import process_time
 from typing import Any, Callable, Iterable, Optional
 from warnings import warn
-import os
 
 import pygame
 import pygame.freetype
@@ -18,12 +18,12 @@ import pygame_widgets
 from pygame_widgets.button import Button
 
 from chess_logic.board import (
-    Coord,
     PIECE_SIDE,
     PIECES,
     ROWS_AND_COLUMNS,
     SIDES,
     STARTING_FEN,
+    Coord,
 )
 from chess_logic.core_chess import Chess, Move
 from chess_logic.move_generation import PIECE_OF_SIDE

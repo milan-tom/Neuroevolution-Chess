@@ -7,20 +7,20 @@ from typing import Any, Callable, Iterator, NamedTuple, Optional
 from numba import njit, types
 
 from chess_logic.board import (
-    Bitboard,
     BITBOARD_SQUARE,
     BITBOARD_TO_FEN_SQUARE,
     CASTLING_ROOK_MOVES,
     CASTLING_SYMBOLS,
-    Coord,
-    ChessBoard,
     OPPOSITE_SIDE,
     PIECE_SIDE,
     PIECES,
-    rotate_bitboard,
     ROWS_AND_COLUMNS,
     SIDES,
     SQUARE_BITBOARD,
+    Bitboard,
+    ChessBoard,
+    Coord,
+    rotate_bitboard,
     unsigned_not,
 )
 

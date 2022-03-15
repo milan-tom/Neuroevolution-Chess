@@ -8,8 +8,8 @@ import pygame
 import pygame_widgets
 import pytest
 
-from chess_gui.gui import ChessGUI, DEFAULT_BUTTON_COLOUR
-from chess_logic.board import Coord, PIECE_SIDE, ROWS_AND_COLUMNS
+from chess_gui.gui import DEFAULT_BUTTON_COLOUR, ChessGUI
+from chess_logic.board import PIECE_SIDE, ROWS_AND_COLUMNS, Coord
 from tests import TEST_FENS
 
 TupleColour = tuple[int, int, int, int]

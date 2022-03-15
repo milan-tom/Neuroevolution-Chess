@@ -1,6 +1,7 @@
 """Handles all functionality associated with MCTS"""
 
 from __future__ import annotations
+
 from collections import deque
 from math import inf, log, sqrt
 from typing import Optional

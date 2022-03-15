@@ -1,17 +1,18 @@
 """Contains final layer of chess state handling"""
 
 from __future__ import annotations
+
 from typing import Any, NamedTuple, Optional
 
 from chess_logic.board import (
+    OPPOSITE_SIDE,
+    STARTING_FEN,
     Bitboard,
     CastlingRights,
     Coord,
-    OPPOSITE_SIDE,
-    STARTING_FEN,
     State,
 )
-from chess_logic.move_generation import Move, Moves, MoveGenerator, PIECE_OF_SIDE
+from chess_logic.move_generation import PIECE_OF_SIDE, Move, MoveGenerator, Moves
 
 
 class PerformedMove(NamedTuple):

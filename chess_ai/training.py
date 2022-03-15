@@ -1,16 +1,16 @@
 """Handles training of value network for MCTS using NEAT (parallel version)"""
 
 from itertools import permutations
-from multiprocessing import cpu_count, Pool
+from multiprocessing import Pool, cpu_count
 from os import listdir, mkdir, path
 from pickle import dump, load
 
-from tqdm import tqdm
 import neat
+from tqdm import tqdm
 
+from chess_ai.mcts import MCTS
 from chess_logic.board import SIDES
 from chess_logic.core_chess import Chess
-from chess_ai.mcts import MCTS
 
 CURRENT_PATH = path.dirname(__file__)
 BEST_PATH = path.join(CURRENT_PATH, "best_genome")
