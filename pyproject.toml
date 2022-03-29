@@ -22,3 +22,8 @@ exclude = [
     [tool.pylint.'DESIGN']
     max-args = 7
     max-attributes = 8
+
+[tool.pytest.ini_options]
+markers = [
+    "serial",
+]

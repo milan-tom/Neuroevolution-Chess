@@ -30,6 +30,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if (Test-Path requirements_test.txt) { pip install -r requirements_test.txt }
-      - name: Test with pytest
+      - name: Test with pytest (parallelised)
         run: |
-          pytest
+           pytest -m "serial"
+           pytest -n auto -m "not serial"

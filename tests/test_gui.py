@@ -99,6 +99,7 @@ def find_move_buttons(test_gui: ChessGUI) -> Iterable[Coord]:
             yield square_coords
 
 
+@pytest.mark.serial
 def test_showing_moves(gui: ChessGUI) -> None:
     """Tests that moves are shown correctly when pieces are clicked"""
     test_square_coords = (6, 5)
