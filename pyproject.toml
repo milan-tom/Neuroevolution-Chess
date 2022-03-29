@@ -13,6 +13,7 @@ exclude = [
     [tool.pylint.master]
     disable = ["import-error"]
     ignore = ["venv"]
+    recursive = ["yes"]
     unsafe-load-any-extension = ["yes"]
 
     [tool.pylint.'FORMAT']

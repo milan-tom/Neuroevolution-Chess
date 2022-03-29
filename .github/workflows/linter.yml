@@ -34,7 +34,7 @@ jobs:
       - uses: isort/isort-action@master
       - name: Lint with pylint
         run: |
-           pylint $(git ls-files '*.py')
+           pylint .
       - name: Type check with mypy
         run: |
           mypy .
