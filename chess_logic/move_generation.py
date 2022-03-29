@@ -425,7 +425,6 @@ class MoveGenerator(ChessBoard):
                             self.move_boards["GAME"] & ~first_attacker_path,
                         ),
                         shift,
-                        first_attacker=False,
                     ):
                         pinned |= first_attacker
 
@@ -458,7 +457,6 @@ class MoveGenerator(ChessBoard):
         self,
         attacker_and_attacker_path: tuple[Bitboard, Bitboard],
         shift: int,
-        first_attacker: bool = True,
     ) -> bool:
         """Determines whether given attacker is attacking king"""
         attacker, attacker_path = attacker_and_attacker_path
@@ -469,8 +467,7 @@ class MoveGenerator(ChessBoard):
                     attacker & self.move_boards[possible_attacker]
                     for possible_attacker in POSSIBLE_ATTACKERS[shift]
                 )
-                or first_attacker
-                and attacker_path.bit_count() == 1
+                or attacker_path.bit_count() == 1
                 and attacker
                 & (
                     self.move_boards["k"]
