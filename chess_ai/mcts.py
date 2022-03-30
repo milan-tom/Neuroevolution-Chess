@@ -42,7 +42,8 @@ class Node:
             self.cached_reward = 0 if chess_state.is_check else 0.5
         if self.cached_reward is not None:
             return self.cached_reward
-        return engine.activate(chess_state.numeric_repr)[0]
+        value = engine.activate([chess_state.numeric_repr])
+        return value[0]
 
     def backpropagate(self, reward: int | float) -> None:
         """Feeds reward of simulated node up tree to parent at each level"""
@@ -70,7 +71,7 @@ class MCTS:
         self.root = Node()
         self.expand_node(self.root)
 
-        # Runs cycles of selection, expansion, simulation, and backpropogation
+        # Runs cycles of selection, expansion, simulation, and backpropagation
         for _ in range(num_simulations):
             node = self.select_node()
             undo_path = self.move_to_node_state(node)

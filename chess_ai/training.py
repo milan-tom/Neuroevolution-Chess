@@ -1,11 +1,12 @@
 """Handles training of value network for MCTS using NEAT (parallel version)"""
 
-from itertools import permutations
+from itertools import cycle, islice, permutations
 from multiprocessing import Pool, cpu_count
 from os import listdir, mkdir, path
 from pickle import dump, load
 
 import neat
+from pytorch_neat.adaptive_linear_net import AdaptiveLinearNet
 from tqdm import tqdm
 
 from chess_ai.mcts import MCTS
@@ -24,6 +25,10 @@ CONFIG = neat.Config(
     neat.DefaultStagnation,
     path.join(CURRENT_PATH, "config-feedforward"),
 )
+
+COORDS = [[-1.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, -1.0]]
+INPUT_COORDS = list(islice(cycle(COORDS), 17))
+OUTPUT_COORDS = [COORDS[0]]
 mcts = MCTS()
 
 
@@ -50,11 +55,20 @@ def save_best(best_genome: neat.DefaultGenome) -> None:
         dump(best_genome, best_genome_file)
 
 
+def create_engine(
+    genome: neat.DefaultGenome, config: neat.Config = CONFIG
+) -> AdaptiveLinearNet:
+    """Generates a Pytorch-NEAT neural netowrk from a NEAT-PYTHON genome"""
+    return AdaptiveLinearNet.create(
+        genome, config, INPUT_COORDS, OUTPUT_COORDS, device="cpu"
+    )
+
+
 def get_best_engine() -> neat.nn.FeedForwardNetwork:
     """Returns the neural network based on the saved best genome"""
     if path.exists(BEST_PATH):
         with open(BEST_PATH, "rb") as best_genome_file:
-            return neat.nn.FeedForwardNetwork.create(load(best_genome_file), CONFIG)
+            return create_engine(load(best_genome_file))
     raise FileNotFoundError("Complete training before retrieving the best genome.")
 
 
@@ -65,10 +79,7 @@ def eval_genomes(
     genomes = [genome_data[1] for genome_data in genomes_data]
     for genome in genomes:
         genome.fitness = 0
-    nets = {
-        genome: neat.nn.FeedForwardNetwork.create(genome, config) for genome in genomes
-    }
-
+    nets = {genome: create_engine(genome, config) for genome in genomes}
     # Runs evaluation in parallel
     with Pool(cpu_count()) as pool:
         matches = tuple(permutations(genomes, 2))
