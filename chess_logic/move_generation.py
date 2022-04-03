@@ -165,7 +165,9 @@ KING_ATTACK_PATH = {
 
 
 @njit(types.UniTuple(types.uint64, 2)(types.int8, types.uint64, types.uint64))
-def king_attacker_and_path_in_direction(shift, attacker_path, attackers):
+def king_attacker_and_path_in_direction(
+    shift: int, attacker_path: Bitboard, attackers: Bitboard
+) -> tuple[Bitboard, Bitboard]:
     """Returns first attacker in given direction and path of attacker if any"""
     relevant_attackers = attacker_path & attackers
     if relevant_attackers:
@@ -204,12 +206,12 @@ POSSIBLE_PIN_SHIFTS = sorted(KING_SHIFTS.keys(), reverse=True)[:4]
 REVERSED_BITBOARD = {1 << i: 1 << 63 - i for i in range(64)}
 
 
-def shift_direction(old: Bitboard, new: Bitboard) -> int:
+def shift_direction(old: Bitboard, new: Bitboard, signed: bool = False) -> int:
     """Returns core bitboard shift by which new square moved to from old"""
     difference = BITBOARD_INDEX[new] - BITBOARD_INDEX[old]
     for shift in POSSIBLE_PIN_SHIFTS:
         if difference % shift == 0:
-            return shift
+            return shift if not signed or difference > 0 else -shift
     raise ValueError("New square is not directly reachable from old square")
 
 
@@ -380,12 +382,21 @@ class MoveGenerator(ChessBoard):
                 if move.context_flag == "K":
                     if not self.square_attacked(move.new_board):
                         yield move
-                else:
+                elif not (
+                    (en_passant := move.context_flag == "EN PASSANT")
+                    and king_bitboard & RANKS[4]
+                    and (
+                        self.is_attacked_in_direction(
+                            shift_direction(king_bitboard, move.old_board, signed=True),
+                            king_bitboard,
+                            self.move_boards["GAME"]
+                            & ~(move.old_board | move.context_data[0]),
+                        )
+                    )
+                ):
                     if self.is_check:
-                        if move.old_board & ~pinned and (
-                            move.new_board & blockable
-                            or move.context_flag == "EN PASSANT"
-                            and move.context_data[0] & blockable
+                        if move.old_board & ~pinned and blockable & (
+                            move.new_board | (move.context_data[0] if en_passant else 0)
                         ):
                             yield move
                     elif move.old_board & pinned:
@@ -418,13 +429,10 @@ class MoveGenerator(ChessBoard):
                         self.is_check = True
                         blockable |= first_attacker_path
                 elif first_attacker & self.move_boards["SAME"]:
-                    if self.is_attacker_in_direction(
-                        king_attacker_and_path_in_direction(
-                            shift,
-                            KING_ATTACK_PATH[king_bitboard][shift],
-                            self.move_boards["GAME"] & ~first_attacker_path,
-                        ),
+                    if self.is_attacked_in_direction(
                         shift,
+                        king_bitboard,
+                        self.move_boards["GAME"] & ~first_attacker_path,
                     ):
                         pinned |= first_attacker
 
@@ -476,6 +484,19 @@ class MoveGenerator(ChessBoard):
             )
         )
 
+    def is_attacked_in_direction(
+        self, shift: int, square: Bitboard, attackers: Bitboard
+    ) -> bool:
+        """Determines whether square is being attacked from specific slider direction"""
+        return self.is_attacker_in_direction(
+            king_attacker_and_path_in_direction(
+                shift,
+                KING_ATTACK_PATH[square][shift],
+                attackers,
+            ),
+            shift,
+        )
+
     def generate_knight_attacks(self) -> None:
         """Pre-computes all attacks possible by opposing knights in current position"""
         self.knight_attacks = {}
@@ -490,13 +511,8 @@ class MoveGenerator(ChessBoard):
         return bool(
             square & self.total_knight_attacks
             or any(
-                self.is_attacker_in_direction(
-                    king_attacker_and_path_in_direction(
-                        shift,
-                        KING_ATTACK_PATH[square][shift],
-                        self.move_boards["NO KING GAME"],
-                    ),
-                    shift=shift,
+                self.is_attacked_in_direction(
+                    shift, square, self.move_boards["NO KING GAME"]
                 )
                 for shift in KING_SHIFTS
             )
