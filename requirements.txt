@@ -2,4 +2,4 @@ neat-python == 0.92
 numba == 0.55.1
 pygame == 2.1.2
 pygame-widgets == 1.0.0
-tqdm == 4.63.1
+tqdm == 4.63.2
