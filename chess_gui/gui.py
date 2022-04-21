@@ -33,15 +33,10 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
 # Imports all piece images and player icons
 image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
-load_image = lambda side, name: pygame.image.load(image_path.format(side, name))
-PIECE_IMAGES = {
-    piece: (
-        piece_image := pygame.image.load(
-            image_path.format(PIECE_SIDE[piece], piece.upper())
-        )
-    ).subsurface(piece_image.get_bounding_rect())
-    for piece in PIECES
-}
+load_image = lambda side, name: (
+    image := pygame.image.load(image_path.format(side, name))
+).subsurface(image.get_bounding_rect())
+PIECE_IMAGES = {piece: load_image(PIECE_SIDE[piece], piece.upper()) for piece in PIECES}
 
 PLAYERS = ["HUMAN", "AI"]
 try:
@@ -170,8 +165,9 @@ class ChessGUI:
         self, img: pygame.surface.Surface, rect: pygame.Rect
     ) -> pygame.surface.Surface:
         """Returns image after scaling it to fit inside Pygame 'Rect' object"""
-        scale_args = (*[img.get_size()] * 2, map(lambda x: 0.7 * x, rect[2:]))
-        return pygame.transform.scale(img, self.scale_coords(*scale_args))
+        img_size = img.get_size()
+        scale_args = img_size, [max(img_size)] * 2, map(lambda x: 0.7 * x, rect[2:])
+        return pygame.transform.smoothscale(img, self.scale_coords(*scale_args))
 
     def scale_widget(
         self, widget: pygame_widgets.widget.WidgetBase, initial: Coord = DISPLAY_SIZE

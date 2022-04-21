@@ -72,7 +72,7 @@ def check_piece_image_colours(square_pxs: list[TupleColour], piece: str) -> None
     piece colour is second most common (first is background) colour in image
     """
     image_colour = Counter(square_pxs).most_common(2)[1][0]
-    assert image_colour == pygame.Color(PIECE_SIDE[piece])
+    assert image_colour == pytest.approx(pygame.Color(PIECE_SIDE[piece]), abs=7)
 
 
 def simulate_button_click(test_gui: ChessGUI, square_coords: Coord) -> None:
