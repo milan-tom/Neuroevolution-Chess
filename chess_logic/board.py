@@ -70,12 +70,6 @@ def unsigned_not(board: Bitboard) -> Bitboard:
     return ~board & UNSIGN_MASK
 
 
-@njit(types.float64(types.uint64))
-def normalize_bitboard(board: Bitboard) -> float:
-    """Converts 64 bit bitboard to float between 0 and 1"""
-    return board / MAX_BITBOARD
-
-
 @njit(types.uint64(types.uint64), locals=dict(board=types.uint64))
 def rotate_bitboard(board: Bitboard) -> Bitboard:
     """Reverses single bitboard bitwise"""
@@ -117,7 +111,7 @@ class BoardMetadata:
         self.en_passant_bitboard = FEN_TO_BITBOARD_SQUARE[self.fen_en_passant_square]
         if self.en_passant_bitboard and self.next_side == "BLACK":
             self.en_passant_bitboard = rotate_bitboard(self.en_passant_bitboard)
-        self.previous_states: deque[Optional[State]] = deque([None] * 10, maxlen=10)
+        self.previous_states: deque[Optional[State]] = deque([None] * 20, maxlen=20)
 
     @property
     def fen_metadata(self) -> str:
@@ -267,19 +261,17 @@ class ChessBoard(BoardMetadata):
         return f"{'/'.join(rows)} {self.fen_metadata}"
 
     @property
-    def numeric_repr(self) -> list[int | float]:
+    def numeric_repr(self) -> list[int]:
         """Returns list containing numeric representations of relevant state portions"""
         castling_rights = [
-            bool(right in self.side_castling_rights[PIECE_SIDE[right]])
+            int(right in self.side_castling_rights[PIECE_SIDE[right]])
             for right in CASTLING_SYMBOLS
         ]
         bitboards = list(self.boards.values())[:12]
         if self.next_side == "BLACK":
+            castling_rights = swap_halves(castling_rights, 2)
             bitboards = list(map(rotate_bitboard, swap_halves(bitboards, 6)))
-        return (
-            list(map(normalize_bitboard, bitboards + [self.en_passant_bitboard]))
-            + castling_rights
-        )
+        return bitboards + [self.en_passant_bitboard] + castling_rights
 
     @property
     def current_state(self) -> State:

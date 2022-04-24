@@ -9,8 +9,9 @@ from typing import Optional
 import neat.nn
 from neat.nn import FeedForwardNetwork
 
+from chess_logic.board import State
 from chess_logic.core_chess import Chess, PerformedMove
-from chess_logic.move_generation import Move
+from chess_logic.move_generation import Move, Moves
 
 
 class Node:
@@ -26,10 +27,12 @@ class Node:
     @property
     def ucb(self):
         """Returns Upper Confidence Bound (UCB) score for node"""
-        if self.visited and self.parent.visited:
-            return self.reward / self.visited + sqrt(
-                2 * log(self.parent.visited) / self.visited
-            )
+        if self.visited:
+            if self.parent.visited:
+                return self.reward / self.visited + sqrt(
+                    2 * log(self.parent.visited) / self.visited
+                )
+            return self.reward / self.visited
         return inf
 
     def best_child(self) -> Node:
@@ -47,10 +50,9 @@ class Node:
     def backpropagate(self, reward: int | float) -> None:
         """Feeds reward of simulated node up tree to parent at each level"""
         node = self
-        while node is not None:
+        while node.parent is not None:
             node.reward += reward
             node.visited += 1
-            reward = 1 - reward
             node = node.parent
 
 
@@ -61,16 +63,21 @@ class MCTS:
         """Initialises MCTS parameters"""
         self.chess_state: Optional[Chess] = None
         self.root: Optional[Node] = None
+        self.initial_moves: Optional[Moves] = None
+        self.initial_state: Optional[State] = None
 
     def best_move(
         self, chess_state: Chess, engine: FeedForwardNetwork, num_simulations: int
     ) -> Move:
         """Uses MCTS simulations and value network to find best move in current state"""
         self.chess_state = chess_state
+        initial_side = self.chess_state.next_side
+        self.initial_moves = self.chess_state.current_legal_moves
+        self.initial_state = self.chess_state.current_state
         self.root = Node()
         self.expand_node(self.root)
 
-        # Runs cycles of selection, expansion, simulation, and backpropogation
+        # Runs cycles of selection, expansion, simulation, and backpropagation
         for _ in range(num_simulations):
             node = self.select_node()
             undo_path = self.move_to_node_state(node)
@@ -79,7 +86,10 @@ class MCTS:
                     self.expand_node(node)
                 node = node.best_child()
                 undo_path.append(self.chess_state.move_piece(node.move))
-            node.backpropagate(node.calculate_reward(self.chess_state, engine))
+            reward = node.calculate_reward(self.chess_state, engine)
+            if self.chess_state.next_side != initial_side:
+                reward = 1 - reward
+            node.backpropagate(reward)
             self.revert_state(undo_path)
 
         return max(self.root.children, key=lambda child: child.visited).move
@@ -93,14 +103,14 @@ class MCTS:
 
     def move_to_node_state(self, node: Node) -> deque[PerformedMove]:
         """Moves chess state to that of given node, returning order to undo moves"""
-        if node != self.root:
-            path = deque((node.move,))
-            while (node := node.parent).parent is not None:
-                path.appendleft(node.move)
-            return deque(
-                map(lambda move: self.chess_state.move_piece(move, update=False), path)
-            )
-        return deque()
+        if node == self.root:
+            return deque()
+        path = deque((node.move,))
+        while (node := node.parent).parent is not None:
+            path.appendleft(node.move)
+        return deque(
+            map(lambda move: self.chess_state.move_piece(move, update=False), path)
+        )
 
     def expand_node(self, node: Node) -> None:
         """Adds all child nodes to given node"""
@@ -110,4 +120,6 @@ class MCTS:
 
     def revert_state(self, undo_path: deque[PerformedMove]) -> None:
         """Undoes moves made to chess state based on order given"""
-        deque(map(self.chess_state.undo_move, reversed(undo_path)), maxlen=0)
+        for performed_move in reversed(undo_path):
+            self.chess_state.undo_move(performed_move, update=False)
+        self.chess_state.update_board_state(self.initial_moves, self.initial_state)

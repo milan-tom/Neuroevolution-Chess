@@ -122,7 +122,7 @@ class Chess(MoveGenerator):
             state_lost,
         )
 
-    def undo_move(self, performed_move: PerformedMove) -> None:
+    def undo_move(self, performed_move: PerformedMove, update: bool = True) -> None:
         """Reverts chess state back to what it was before move"""
         previous_state = self.undo_metadata_update(*performed_move[-4:])
         self.move_piece_bitboard_square(
@@ -152,4 +152,5 @@ class Chess(MoveGenerator):
                     *reversed(performed_move.context_data),
                 )
 
-        self.update_board_state(performed_move.old_legal_moves, previous_state)
+        if update:
+            self.update_board_state(performed_move.old_legal_moves, previous_state)
