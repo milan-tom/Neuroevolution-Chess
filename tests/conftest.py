@@ -2,6 +2,7 @@
 
 import pytest
 
+from chess_ai.mcts import MCTS
 from chess_gui.gui import ChessGUI, Design
 from chess_logic.core_chess import Chess
 
@@ -20,3 +21,4 @@ def test_instance_creator(__name, __obj):
 chess = test_instance_creator("chess", Chess)
 design = test_instance_creator("design", Design)
 gui = test_instance_creator("gui", ChessGUI)
+mcts = test_instance_creator("mcts", MCTS)

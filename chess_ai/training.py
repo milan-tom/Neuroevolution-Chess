@@ -18,7 +18,10 @@ from chess_logic.move_generation import Move, Moves
 
 def get_latest(directory: str, default: Any) -> str:
     """Returns latest file in folder of numerically-labelled files"""
-    return max(listdir(directory), key=int, default=str(default))
+    latest_file = max(
+        listdir(path.join(CURRENT_PATH, directory)), key=int, default=str(default)
+    )
+    return path.join(CURRENT_PATH, directory, latest_file)
 
 
 CURRENT_PATH = path.dirname(__file__)
@@ -78,10 +81,7 @@ save_matches = partial(save_to_pickle, directory=TRAINING_MATCHES_DIR)
 def get_best_engine() -> neat.nn.FeedForwardNetwork:
     """Returns the engine encoded by the best genome from the last trained generation"""
     return neat.nn.FeedForwardNetwork.create(
-        load_from_pickle(
-            get_latest(path.join(CURRENT_PATH, BEST_GENOMES_DIR), 0), BEST_GENOMES_DIR
-        ),
-        CONFIG,
+        load_from_pickle(get_latest(BEST_GENOMES_DIR, 0)), CONFIG
     )
 
 
@@ -107,7 +107,7 @@ class Trainer(neat.Population):
 
         if latest := get_latest(CHECKPOINT_DIR, ""):
             population = checkpointer.restore_checkpoint(
-                path.join(CHECKPOINT_DIR, latest)
+                path.join(CURRENT_PATH, CHECKPOINT_DIR, latest)
             )
             super().__init__(
                 population.config,

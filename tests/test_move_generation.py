@@ -30,12 +30,14 @@ def divide(depth, chess=Chess()) -> Iterator[tuple[str, int]]:
         yield str(move), num_moves(depth, chess, move)
 
 
-test_data_path = path.join(path.dirname(__file__), "move_generation_test_data.json")
-with open(test_data_path, encoding="utf-8") as test_data_file:
-    test_data = json.load(test_data_file)
+MOVE_TEST_DATA_PATH = path.join(
+    path.dirname(__file__), "move_generation_test_data.json"
+)
+with open(MOVE_TEST_DATA_PATH, encoding="utf-8") as test_data_file:
+    MOVE_TEST_DATA = json.load(test_data_file)
 
 
-@pytest.mark.parametrize("fen, chess", zip(*[test_data] * 2), indirect=["chess"])
+@pytest.mark.parametrize("fen, chess", zip(*[MOVE_TEST_DATA] * 2), indirect=["chess"])
 def test_undo_move(fen: str, chess: Chess):
     """Tests that making and undoing legal moves returns chess state to same position"""
     for move in chess.current_legal_moves:
@@ -43,7 +45,9 @@ def test_undo_move(fen: str, chess: Chess):
         assert chess.fen == fen
 
 
-@pytest.mark.parametrize("chess, test_case_data", test_data.items(), indirect=["chess"])
+@pytest.mark.parametrize(
+    "chess, test_case_data", MOVE_TEST_DATA.items(), indirect=["chess"]
+)
 class TestMoveGeneration:
     """Stores all tests using data from test data JSON file with above parameters"""
 
