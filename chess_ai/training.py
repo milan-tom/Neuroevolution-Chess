@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from chess_ai.mcts import MCTS
 from chess_logic.core_chess import Chess
-from chess_logic.move_generation import Move
+from chess_logic.move_generation import Move, Moves
 
 
 def get_latest(directory: str, default: Any) -> str:
@@ -39,10 +39,12 @@ CONFIG = neat.Config(
     path.join(CURRENT_PATH, "config-feedforward"),
 )
 
+GenomePlayers = tuple[neat.DefaultGenome, neat.DefaultGenome]
+
 
 def simulate_match(
     players: tuple[neat.nn.FeedForwardNetwork, neat.nn.FeedForwardNetwork]
-) -> tuple[tuple[int | float, int | float], list[Move]]:
+) -> tuple[tuple[int | float, int | float], Moves]:
     """Simulates match between 2 players, giving reward from test player perspective"""
     chess_state = Chess()
     mcts = MCTS()
@@ -52,7 +54,7 @@ def simulate_match(
         chess_state.move_piece(move)
         moves.append(move)
     rewards = (0, 0) if chess_state.winner is None else (1.25, -1)
-    return (rewards[::-1] if chess_state.winner == "BLACK" else rewards), moves
+    return (rewards[::-1] if chess_state.winner == "BLACK" else rewards), tuple(moves)
 
 
 def save_to_pickle(obj: Any, filename: Any, directory: str = "") -> None:
@@ -127,9 +129,7 @@ class Trainer(neat.Population):
         """Runs NEAT for certain number of generations using provided configuration"""
         self.run(self.eval_genomes, num_generations - self.generation + 1)
 
-    def generate_matches(
-        self, num_to_face: int
-    ) -> list[tuple[neat.DefaultGenome, neat.DefaultGenome]]:
+    def generate_matches(self, num_to_face: int) -> list[GenomePlayers]:
         """Generates matches between each genome and certain sample of other genomes"""
         matches = []
         for _ in range(len(self.genomes)):

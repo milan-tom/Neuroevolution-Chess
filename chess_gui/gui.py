@@ -125,7 +125,13 @@ class ChessGUI:
           8x8 chess board (0-based increasing from top to bottom and left to right)
     """
 
-    def __init__(self, display_size: Coord = (0, 0), fen: str = STARTING_FEN) -> None:
+    def __init__(
+        self,
+        display_size: Coord = (0, 0),
+        fen: str = STARTING_FEN,
+        display_only: bool = False,
+        display_message: str = None,
+    ) -> None:
         """Initialises chess board state and GUI components, and draws board"""
         pygame.display.set_caption("Chess GUI")
 
@@ -137,6 +143,8 @@ class ChessGUI:
         # Initialises chess object (manages chess rules for GUI) and engine-related data
         self.chess = Chess(fen)
         self.current_players = dict(zip(SIDES, cycle(PLAYERS)))
+        self.display_only = display_only
+        self.display_message = display_message
 
         # Draws the board automatically
         self.draw_board()
@@ -220,21 +228,22 @@ class ChessGUI:
         rel_width: float = 0.8,
         rel_x: float = 0.5,
         rel_y: float = 0.5,
+        destination_surface: Optional[pygame.surface.Surface] = None,
     ) -> None:
         """Displays text of the preconfigured font at the given location"""
+        if destination_surface is None:
+            destination_surface = self.design.non_board_area
         resolution = 0.1
         size = resolution * bisect_right(
             list(range(1, int(100 / resolution))),
-            rel_width * self.design.non_board_area.get_rect().width,
+            rel_width * destination_surface.get_rect().width,
             key=lambda x: GAME_FONT.get_rect(text, size=x * resolution).width,
         )
         text_rect = GAME_FONT.get_rect(text, size=size)
         text_rect.center = tuple(
-            map(mul, (rel_x, rel_y), self.design.non_board_area.get_rect()[2:])
+            map(mul, (rel_x, rel_y), destination_surface.get_rect()[2:])
         )
-        GAME_FONT.render_to(
-            self.design.non_board_area, text_rect, text, "white", size=size
-        )
+        GAME_FONT.render_to(destination_surface, text_rect, text, "white", size=size)
 
     def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
@@ -278,6 +287,8 @@ class ChessGUI:
         self.design.draw_board_squares()
         if self.chess.game_over:
             self.show_text(self.chess.game_over_message)
+        elif self.display_only:
+            self.show_text(self.display_message)
         else:
             self.draw_players()
         self.draw_pieces()
@@ -350,7 +361,7 @@ class ChessGUI:
             pygame.display.update()
 
             if (
-                not self.chess.game_over
+                not (self.display_only or self.chess.game_over)
                 and self.current_players[self.chess.next_side] == "AI"
             ):
                 self.move_piece(best_engine_move(self.chess, 10000))
