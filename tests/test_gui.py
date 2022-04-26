@@ -114,6 +114,39 @@ def test_showing_moves(gui: ChessGUI) -> None:
     assert not any(find_move_buttons(gui))
 
 
+TEST_TEXTS = (
+    "Lorem ipsum dolor sit amet, ",
+    "consectetur adip",
+    "iscing elit. C",
+    "ras eu ",
+    "lacus sollicitudin, ",
+    "bibendum tellus et,",
+    " bla",
+    "ndit",
+    " tell",
+    "us. Aenean ac viverra f",
+    "elis.",
+    " Donec mattis, nunc at s",
+    "agittis viverra, a",
+    "nte diam lacinia sapi",
+    "en, non mattis tortor metu",
+    "s vel diam. Pellentesq",
+    "ue ut faci",
+    "lis",
+    "is orci, ut ullamcorper i",
+    "psum. Ma",
+    "ecenas ut tempor nulla. V",
+)
+
+
+@pytest.mark.parametrize("gui", chain(zip(TEST_DISPLAY_SIZES)), indirect=True)
+@pytest.mark.parametrize("text", TEST_TEXTS)
+def test_showing_text(gui, text):
+    """Tests that shown text does not overflow out of provided surface"""
+    text_rect = gui.show_text(text, rel_width=1, destination_surface=gui.display)
+    assert text_rect.clip(gui.display.get_rect()) == text_rect
+
+
 def test_quit_button(gui) -> None:
     """Tests if the quit button actually closes the GUI"""
     # Adds quit event to event queue, checking if GUI stops upon detecting it

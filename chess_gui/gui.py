@@ -187,12 +187,6 @@ class ChessGUI:
             initial,
         )
 
-    def get_square_range(self, square: Coord) -> Iterable[Coord]:
-        """Returns all scaled coordinates within specified square"""
-        return rect_range(
-            self.scale_coords(self.design.get_square_rect(square))  # type: ignore
-        )
-
     def draw_button_at_rect(
         self,
         rect: pygame.Rect,
@@ -229,7 +223,7 @@ class ChessGUI:
         rel_x: float = 0.5,
         rel_y: float = 0.5,
         destination_surface: Optional[pygame.surface.Surface] = None,
-    ) -> None:
+    ) -> pygame.Rect:
         """Displays text of the preconfigured font at the given location"""
         if destination_surface is None:
             destination_surface = self.design.non_board_area
@@ -244,6 +238,7 @@ class ChessGUI:
             map(mul, (rel_x, rel_y), destination_surface.get_rect()[2:])
         )
         GAME_FONT.render_to(destination_surface, text_rect, text, "white", size=size)
+        return text_rect
 
     def draw_pieces(self) -> None:
         """Draws the pieces at the correct positions on the screen"""
