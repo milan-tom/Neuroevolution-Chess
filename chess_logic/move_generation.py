@@ -127,7 +127,7 @@ def msb(bitboard: Bitboard) -> Bitboard:
     while shift <= 32:
         bitboard |= bitboard >> shift
         shift <<= 1
-    return (bitboard + 1) >> 1
+    return (bitboard >> 1) + 1
 
 
 @njit(types.void(types.uint64))
