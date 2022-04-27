@@ -21,7 +21,7 @@ exclude = [
 
     [tool.pylint.'DESIGN']
     max-args = 7
-    max-attributes = 8
+    max-attributes = 10
 
 [tool.pytest.ini_options]
 markers = [

@@ -5,9 +5,11 @@ state
 
 import os
 from bisect import bisect_right
+from copy import deepcopy
 from functools import partial
 from itertools import cycle, product
 from operator import mul, sub
+from threading import Thread
 from time import process_time
 from typing import Any, Callable, Iterable, Optional
 from warnings import warn
@@ -32,11 +34,14 @@ from chess_logic.move_generation import PIECE_OF_SIDE
 os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
 # Imports all piece images and player icons
-image_path = os.path.join(os.path.dirname(__file__), "images", "{}_{}.png")
-load_image = lambda side, name: (
-    image := pygame.image.load(image_path.format(side, name))
+image_path = os.path.join(os.path.dirname(__file__), "images")
+load_image = lambda name: (
+    image := pygame.image.load(os.path.join(image_path, f"{name}.png"))
 ).subsurface(image.get_bounding_rect())
-PIECE_IMAGES = {piece: load_image(PIECE_SIDE[piece], piece.upper()) for piece in PIECES}
+PIECE_IMAGES = {
+    piece: load_image(f"{PIECE_SIDE[piece]}_{piece.upper()}") for piece in PIECES
+}
+RESTART_ICON = load_image("RESTART")
 
 PLAYERS = ["HUMAN", "AI"]
 try:
@@ -45,7 +50,7 @@ except FileNotFoundError:
     warn("Train the engine before opening the GUI in order to enable AI.")
     PLAYERS.pop()
 PLAYER_ICONS = {
-    player_type: {side: load_image(side, player_type) for side in SIDES}
+    player_type: {side: load_image(f"{side}_{player_type}") for side in SIDES}
     for player_type in PLAYERS
 }
 
@@ -139,6 +144,8 @@ class ChessGUI:
         self.display = pygame.display.set_mode(display_size, pygame.RESIZABLE)
         self.selected_square: Optional[Coord] = None
         self.running = True
+        self.searching = False
+        self.best_engine_move: Optional[Move] = None
 
         # Initialises chess object (manages chess rules for GUI) and engine-related data
         self.chess = Chess(fen)
@@ -187,6 +194,12 @@ class ChessGUI:
             initial,
         )
 
+    def draw_button(self, button: Button) -> None:
+        """Draws button, scales coordinates for display size, and updates display"""
+        button.draw()
+        self.scale_widget(button)
+        self.update()
+
     def draw_button_at_rect(
         self,
         rect: pygame.Rect,
@@ -197,16 +210,15 @@ class ChessGUI:
         """Draws button within specified Pygame 'Rect' object"""
         if image is not None:
             image = self.rect_scaled_img(image, rect)
-        button = Button(
-            self.design,
-            *rect,
-            inactiveColour=colour,
-            image=image,
-            onRelease=func,
+        self.draw_button(
+            Button(
+                self.design,
+                *rect,
+                inactiveColour=colour,
+                image=image,
+                onRelease=func,
+            )
         )
-        button.draw()
-        self.update()
-        self.scale_widget(button)
 
     def draw_button_at_square(
         self, square: Coord, image: Optional[pygame.surface.Surface] = None, **kwargs
@@ -275,18 +287,38 @@ class ChessGUI:
                 colour="white",
             )
 
+    def draw_restart_button(self) -> None:
+        """Draws button for restarting the game"""
+        rect = RESTART_ICON.get_rect()
+        rect.center = self.design.non_board_area.get_rect().center
+        rect.centerx += self.design.non_board_area.get_offset()[0]
+        rect.centery += 200
+        self.draw_button(
+            Button(
+                self.design,
+                *rect,
+                onRelease=lambda: self.__init__(  # type: ignore[misc]
+                    self.display.get_size()
+                ),
+                radius=rect.width // 2,
+                image=RESTART_ICON,
+            )
+        )
+
     def draw_board(self) -> None:
         """Displays the current state of the board"""
         self.design.fill("black")
         pygame_widgets.WidgetHandler.getWidgets().clear()
         self.design.draw_board_squares()
+        self.draw_pieces()
+        self.draw_restart_button()
         if self.chess.game_over:
             self.show_text(self.chess.game_over_message)
         elif self.display_only:
             self.show_text(self.display_message)
         else:
             self.draw_players()
-        self.draw_pieces()
+            self.check_engine_move()
 
     def switch_player(self, side: str) -> None:
         """Switches type of player playing for side whose button clicked"""
@@ -335,6 +367,27 @@ class ChessGUI:
         self.chess.move_piece(move)
         self.draw_board()
 
+    def engine_move(self) -> None:
+        """Gets the best engine move for the current side"""
+        inital_side = self.chess.next_side
+        self.searching = True
+        best_move = best_engine_move(deepcopy(self.chess), 10000)
+        self.searching = False
+        # Verifies state hasn't changed since move request initiated
+        if (
+            self.chess.next_side == inital_side
+            and self.current_players[inital_side] == "AI"
+        ):
+            self.best_engine_move = best_move
+
+    def check_engine_move(self) -> None:
+        """Checks if it is engine's turn to move, starting move search thread if so"""
+        if (
+            not (self.chess.game_over or self.searching)
+            and self.current_players[self.chess.next_side] == "AI"
+        ):
+            Thread(target=self.engine_move).start()
+
     def mainloop(self, time_limit: int | float = float("inf")) -> None:
         """Keeps GUI running, managing events and buttons, and rendering changes"""
         time_limit /= 1000
@@ -355,11 +408,9 @@ class ChessGUI:
             pygame_widgets.update(events)
             pygame.display.update()
 
-            if (
-                not (self.display_only or self.chess.game_over)
-                and self.current_players[self.chess.next_side] == "AI"
-            ):
-                self.move_piece(best_engine_move(self.chess, 10000))
+            if self.best_engine_move is not None:
+                self.move_piece(self.best_engine_move)
+                self.best_engine_move = None
 
 
 if __name__ == "__main__":
