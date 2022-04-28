@@ -8,7 +8,7 @@ import pygame
 import pygame_widgets
 import pytest
 
-from chess_gui.gui import DEFAULT_BUTTON_COLOUR, ChessGUI
+from chess_gui.gui import MOVE_COLOUR, ChessGUI
 from chess_logic.board import PIECE_SIDE, ROWS_AND_COLUMNS, Coord
 from tests import TEST_FENS
 
@@ -84,18 +84,18 @@ def simulate_button_click(test_gui: ChessGUI, square_coords: Coord) -> None:
     pygame.mouse.set_pos(*test_gui.scale_coords(test_coords))
     pygame.event.set_grab(False)
     test_gui.mainloop(100)
-    pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.CLICK
-    pygame_widgets.widget.WidgetHandler.main([])
-    test_gui.mainloop(100)
+    pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.RELEASE
+    for widget in pygame_widgets.widget.WidgetHandler.getWidgets():
+        widget.clicked = True
+        widget.listen([])
 
 
 def find_move_buttons(test_gui: ChessGUI) -> Iterable[Coord]:
     """Generator yielding all square coordinates shown as possible moves"""
     for square_coords in ROWS_AND_COLUMNS:
-        if (
-            test_gui.design.get_at(test_gui.design.square_to_pixel(square_coords))
-            == DEFAULT_BUTTON_COLOUR
-        ):
+        if test_gui.display.get_at(
+            test_gui.design.get_square_rect(square_coords).center
+        ) == pytest.approx(pygame.Color(MOVE_COLOUR), abs=2):
             yield square_coords
 
 

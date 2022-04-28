@@ -59,7 +59,7 @@ pygame.init()
 GAME_FONT: pygame.freetype.Font  # type: ignore[name-defined]
 GAME_FONT = pygame.freetype.SysFont("Verdana", 0)
 SCREEN_WIDTH, SCREEN_HEIGHT = DISPLAY_SIZE = 1536, 864
-DEFAULT_BUTTON_COLOUR = (0, 255, 0)
+MOVE_COLOUR = 65, 187, 128
 
 
 def rect_range(rect: pygame.Rect):
@@ -205,7 +205,7 @@ class ChessGUI:
         rect: pygame.Rect,
         image: Optional[pygame.surface.Surface],
         func: Callable[[], Any],
-        colour: str | tuple[int, int, int] = DEFAULT_BUTTON_COLOUR,
+        colour: str | tuple[int, int, int],
     ):
         """Draws button within specified Pygame 'Rect' object"""
         if image is not None:
@@ -226,6 +226,12 @@ class ChessGUI:
         """Draws button at given square"""
         if image is None:
             image = PIECE_IMAGES.get(self.chess.get_piece_at_square(square))
+        if "colour" not in kwargs:
+            kwargs["colour"] = (
+                self.design.get_square_colour(square)
+                if all(0 <= x <= 7 for x in square)
+                else "WHITE"
+            )
         self.draw_button_at_rect(self.design.get_square_rect(square), image, **kwargs)
 
     def show_text(
@@ -327,6 +333,13 @@ class ChessGUI:
         ]
         self.draw_board()
 
+    def draw_move_at_square(self, square: Coord, *args, **kwargs) -> None:
+        """Draws button and circle for move to given square"""
+        self.draw_button_at_square(square, *args, **kwargs)
+        pygame.draw.circle(
+            self.design, MOVE_COLOUR, self.design.get_square_rect(square).center, 15
+        )
+
     def show_moves(self, old_square: Coord) -> None:
         """Display move buttons for clicked piece (double clicking clears moves)"""
         self.draw_board()
@@ -339,15 +352,16 @@ class ChessGUI:
             if legal_moves and legal_moves[0].context_flag == "PROMOTION":
                 for promotion_set_i in range(0, len(legal_moves), 4):
                     promotion_moves = legal_moves[promotion_set_i : promotion_set_i + 4]
-                    self.draw_button_at_square(
+                    self.draw_move_at_square(
                         square=promotion_moves[0].new_square,
                         func=partial(self.show_promotion_moves, promotion_moves),
                     )
             else:
                 for move in legal_moves:
-                    self.draw_button_at_square(
+                    self.draw_move_at_square(
                         square=move.new_square, func=partial(self.move_piece, move)
                     )
+        self.update()
 
     def show_promotion_moves(self, promotion_moves: list[Move]):
         """Displays all choices for promoting pawn"""
