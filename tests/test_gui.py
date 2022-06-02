@@ -77,13 +77,13 @@ def check_piece_image_colours(square_pxs: list[TupleColour], piece: str) -> None
 
 def simulate_button_click(test_gui: ChessGUI, square_coords: Coord) -> None:
     """Simulates a button press at the given coordinates"""
-    # pylint: disable=protected-access
     test_coords = test_gui.design.get_square_rect(square_coords).center
     pygame.event.set_grab(True)
     test_gui.mainloop(100)
     pygame.mouse.set_pos(*test_gui.scale_coords(test_coords))
     pygame.event.set_grab(False)
     test_gui.mainloop(100)
+    # pylint: disable=protected-access
     pygame_widgets.mouse.Mouse._mouseState = pygame_widgets.mouse.MouseState.RELEASE
     for widget in pygame_widgets.widget.WidgetHandler.getWidgets():
         widget.clicked = True

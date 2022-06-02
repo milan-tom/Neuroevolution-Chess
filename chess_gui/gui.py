@@ -35,9 +35,14 @@ os.environ["SDL_VIDEO_WINDOW_POS"] = "0, 20"
 
 # Imports all piece images and player icons
 image_path = os.path.join(os.path.dirname(__file__), "images")
-load_image = lambda name: (
-    image := pygame.image.load(os.path.join(image_path, f"{name}.png"))
-).subsurface(image.get_bounding_rect())
+
+
+def load_image(name: str) -> pygame.surface.Surface:
+    """Loads image from chess_gui/images directory given image filename"""
+    image = pygame.image.load(os.path.join(image_path, f"{name}.png"))
+    return image.subsurface(image.get_bounding_rect())
+
+
 PIECE_IMAGES = {
     piece: load_image(f"{PIECE_SIDE[piece]}_{piece.upper()}") for piece in PIECES
 }
@@ -177,7 +182,7 @@ class ChessGUI:
         ]
 
     def rect_scaled_img(
-        self, img: pygame.surface.Surface, rect: pygame.Rect
+        self, img: pygame.surface.Surface, rect: pygame.rect.Rect
     ) -> pygame.surface.Surface:
         """Returns image after scaling it to fit inside Pygame 'Rect' object"""
         img_size = img.get_size()
@@ -194,31 +199,28 @@ class ChessGUI:
             initial,
         )
 
-    def draw_button(self, button: Button) -> None:
-        """Draws button, scales coordinates for display size, and updates display"""
-        button.draw()
-        self.scale_widget(button)
-        self.update()
-
     def draw_button_at_rect(
         self,
-        rect: pygame.Rect,
+        rect: pygame.rect.Rect,
         image: Optional[pygame.surface.Surface],
         func: Callable[[], Any],
-        colour: str | tuple[int, int, int],
+        colour: Optional[str | tuple[int, int, int]] = "BLACK",
+        **kwargs,
     ):
         """Draws button within specified Pygame 'Rect' object"""
         if image is not None:
             image = self.rect_scaled_img(image, rect)
-        self.draw_button(
-            Button(
-                self.design,
-                *rect,
-                inactiveColour=colour,
-                image=image,
-                onRelease=func,
-            )
+        button = Button(
+            self.design,
+            *rect,
+            inactiveColour=colour,
+            image=image,
+            onRelease=func,
+            **kwargs,
         )
+        button.draw()
+        self.scale_widget(button)
+        self.update()
 
     def draw_button_at_square(
         self, square: Coord, image: Optional[pygame.surface.Surface] = None, **kwargs
@@ -299,17 +301,17 @@ class ChessGUI:
         rect.center = self.design.non_board_area.get_rect().center
         rect.centerx += self.design.non_board_area.get_offset()[0]
         rect.centery += 200
-        self.draw_button(
-            Button(
-                self.design,
-                *rect,
-                onRelease=lambda: self.__init__(  # type: ignore[misc]
-                    self.display.get_size()
-                ),
-                radius=rect.width // 2,
-                image=RESTART_ICON,
-            )
+        self.draw_button_at_rect(
+            rect=rect,
+            image=RESTART_ICON,
+            func=self.restart_game,
+            radius=rect.width // 2,
         )
+
+    def restart_game(self) -> None:
+        """Restarts game and updates board"""
+        self.chess = Chess()
+        self.draw_board()
 
     def draw_board(self) -> None:
         """Displays the current state of the board"""
@@ -408,7 +410,6 @@ class ChessGUI:
         start_time = process_time()
         old_resolution = self.display.get_size()
         while self.running and (process_time() - start_time) < time_limit:
-            # pylint: disable=superfluous-parens
             for event in (events := pygame.event.get()):
                 match event.type:
                     case pygame.VIDEORESIZE:
