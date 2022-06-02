@@ -51,8 +51,6 @@ def test_undo_move(fen: str, chess: Chess):
 class TestMoveGeneration:
     """Stores all tests using data from test data JSON file with above parameters"""
 
-    # pylint: disable=no-self-use
-
     def test_move_generation(
         self, chess: Chess, test_case_data: dict[str, int]
     ) -> None:
